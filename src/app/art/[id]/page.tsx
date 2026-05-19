@@ -1,7 +1,7 @@
 'use client';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, getMongoArtByRelationalId } from '@/lib/api';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -13,13 +13,11 @@ import { mostrarAnio } from '@/utils/formatters';
 
 export default function ArtDetailPage() {
     const { id } = useParams();
-    const queryClient = useQueryClient(); // Para refrescar los datos automáticamente
+    const queryClient = useQueryClient();
     const [user, setUser] = useState<Buyer | null>(null);
-
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
-
         if (storedUser) {
             try {
                 const parsed = JSON.parse(storedUser);
@@ -28,21 +26,29 @@ export default function ArtDetailPage() {
         }
     }, []);
 
-
-
-    // 1. Query para obtener los detalles de la obra
+    // ── 1. PostgreSQL: datos transaccionales (compra, reserva, estado de membresía)
+    //       El `id` de la URL ES el idRelacional → compatible con ambas bases de datos.
     const { data: art, isLoading, error } = useQuery<Art>({
         queryKey: ['art', id],
         queryFn: () => api.get(`api/arts/${id}`).json<Art>()
     });
 
-    // 2. Mutación para reservar la obra
+    // ── 2. MongoDB: documento BSON con detallesEspecificos polimórficos
+    //       Se carga en paralelo. Si MongoDB no está disponible, la página
+    //       sigue funcionando con los datos de PostgreSQL como fallback.
+    const { data: mongoDoc } = useQuery({
+        queryKey: ['mongo-art', id],
+        queryFn: () => getMongoArtByRelationalId(Number(id)),
+        // No bloquear la UI si MongoDB falla
+        retry: 1,
+    });
+
+    // ── 3. Mutación: Reservar obra (usa idRelacional = id PostgreSQL)
     const reserveMutation = useMutation({
         mutationFn: () => {
             const storedUser = localStorage.getItem('user');
             const parsed = storedUser ? JSON.parse(storedUser) : null;
             const buyerId = parsed?.user?.id || parsed?.id;
-
             if (!buyerId) throw new Error("No se pudo obtener el ID del comprador");
             return api.post(`api/arts/${id}/reservar/${buyerId}`);
         },
@@ -57,13 +63,13 @@ export default function ArtDetailPage() {
         }
     });
 
-    // Mutación para cancelar la reserva de la obra
+    // ── 4. Mutación: Cancelar reserva
     const cancelReserveMutation = useMutation({
         mutationFn: () => api.post(`api/arts/${id}/cancelar-reserva`).json<Art>(),
         onSuccess: (updatedArt) => {
             alert(`La reserva de la obra "${updatedArt.nombre}" ha sido cancelada.`);
             queryClient.invalidateQueries({ queryKey: ['art', id] });
-            queryClient.invalidateQueries({ queryKey: ['obras-reservadas'] }); // Invalida también en admin
+            queryClient.invalidateQueries({ queryKey: ['obras-reservadas'] });
         },
         onError: async (err: any) => {
             const errorMessage = await err.response?.text();
@@ -71,14 +77,65 @@ export default function ArtDetailPage() {
         }
     });
 
-    if (isLoading) return <div className="p-20 text-center font-serif text-2xl">Cargando obra maestra...</div>;
+    if (isLoading) return (
+        <div className="flex items-center justify-center min-h-screen bg-stone-50">
+            <p className="p-20 text-center font-serif text-2xl text-stone-400 animate-pulse">
+                Cargando obra maestra…
+            </p>
+        </div>
+    );
     if (error || !art) return <div className="p-20 text-center">Obra no encontrada o error de conexión.</div>;
 
-    // Render para obtener datos especificos del genero
-
+    // ─────────────────────────────────────────────────────────────────────────
+    // Render de detalles específicos
+    // Prioridad: MongoDB (detallesEspecificos polimórficos) → PostgreSQL (campos tipados)
+    // Esto demuestra la integración real de Persistencia Políglota.
+    // ─────────────────────────────────────────────────────────────────────────
     const renderSpecificDetails = () => {
-        const genero = art.genero?.nombre.toLowerCase();
 
+        // ── RAMA MONGODB: campos heterogéneos del documento BSON ──
+        if (mongoDoc?.detallesEspecificos && Object.keys(mongoDoc.detallesEspecificos).length > 0) {
+            const details = mongoDoc.detallesEspecificos;
+            return (
+                <>
+                    {/* Indicador de fuente */}
+                    <div className="col-span-2 flex items-center gap-1.5 mb-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-600">
+                            Detalles desde MongoDB
+                        </span>
+                    </div>
+
+                    {/* Renderizado dinámico: cada campo de detallesEspecificos se muestra
+                        sin necesidad de conocer de antemano el tipo de obra (polimorfismo real) */}
+                    {Object.entries(details).map(([key, value]) => {
+                        // Dimensiones es un objeto anidado (caso Escultura)
+                        if (typeof value === 'object' && value !== null) {
+                            const dims = value as Record<string, unknown>;
+                            return (
+                                <ArtDetailField
+                                    key={key}
+                                    label={key.charAt(0).toUpperCase() + key.slice(1)}
+                                    value={Object.entries(dims)
+                                        .map(([k, v]) => `${k}: ${v}`)
+                                        .join(' · ')}
+                                />
+                            );
+                        }
+                        return (
+                            <ArtDetailField
+                                key={key}
+                                label={key.charAt(0).toUpperCase() + key.slice(1)}
+                                value={String(value)}
+                            />
+                        );
+                    })}
+                </>
+            );
+        }
+
+        // ── RAMA POSTGRESQL: fallback tipado (por si MongoDB no está disponible) ──
+        const genero = art.genero?.nombre.toLowerCase();
         switch (genero) {
             case 'pintura': {
                 const p = art as Painting;
@@ -137,7 +194,7 @@ export default function ArtDetailPage() {
         <div className="min-h-screen bg-stone-50 pt-32 pb-20 px-6">
             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
 
-                {/* Visualización de la Imagen */}
+                {/* Imagen */}
                 <div className="bg-white p-4 shadow-2xl rotate-1 border border-stone-200">
                     <Image
                         src={art.imagenUrl || 'https://via.placeholder.com/600'}
@@ -148,70 +205,85 @@ export default function ArtDetailPage() {
                     />
                 </div>
 
-                {/* Información de la Obra */}
+                {/* Información */}
                 <div className="space-y-10">
                     <div className="border-b border-stone-200 pb-8">
-                        <div className="flex justify-between items-start">
+                        <div className="flex justify-between items-start gap-4">
                             <h1 className="text-5xl font-serif font-medium text-slate-900 leading-tight">
                                 {art.nombre}
                             </h1>
-                            <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full ${art.estatus === 'Disponible' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                                }`}>
+                            <span className={`shrink-0 px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full ${
+                                art.estatus === 'Disponible' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                            }`}>
                                 {art.estatus}
                             </span>
                         </div>
                         <p className="text-2xl font-light text-stone-500 italic font-serif mt-2">
                             por <span className="text-stone-800 not-italic font-medium">{art.artista?.nombre}</span>
                         </p>
+                        {/* Indicador de fuente de datos */}
+                        <div className="flex items-center gap-3 mt-3">
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                PostgreSQL · Transaccional
+                            </span>
+                            {mongoDoc && (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                    <span className="w-1 h-1 rounded-full bg-emerald-500 inline-block" />
+                                    MongoDB · Catálogo
+                                </span>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Especificaciones Dinámicas  */}
-                    {/* Especificaciones Dinámicas Limpias */}
+                    {/* Especificaciones: campos fijos + detallesEspecificos polimórficos */}
                     <div className="grid grid-cols-2 gap-x-12 gap-y-8">
-                        {/* Campos que siempre existen */}
+                        {/* Campos que siempre existen (PostgreSQL) */}
                         <ArtDetailField label="Género" value={art.genero?.nombre} />
+                        <ArtDetailField label="Año de Creación" value={mostrarAnio(art.fechaCreacion)} />
 
+                        {/* Precio (MongoDB si disponible, PostgreSQL como fallback) */}
                         <ArtDetailField
-                            label="Año de Creación"
-                            value={mostrarAnio(art.fechaCreacion)}
+                            label="Precio Base"
+                            value={`$${(mongoDoc?.precio ?? art.precioBase).toLocaleString()}`}
                         />
 
-                        {/* Campos específicos según el género */}
+                        {/* Artista embebido de MongoDB */}
+                        {mongoDoc?.artista?.nacionalidad && (
+                            <ArtDetailField label="Nacionalidad" value={mongoDoc.artista.nacionalidad} />
+                        )}
+
+                        {/* Campos específicos por género (polimorfismo) */}
                         {renderSpecificDetails()}
                     </div>
 
-                    {/* Lógica de Botones Condicionales */}
+                    {/* Botones de acción — toda la lógica usa PostgreSQL (idRelacional) */}
                     <div className="mt-12">
-
                         {!user ? (
-                            <Link href="/login" className="block w-full text-center py-5 bg-slate-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-slate-800 transition-all">
+                            <Link
+                                href="/login"
+                                className="block w-full text-center py-5 bg-slate-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-slate-800 transition-all"
+                            >
                                 Autenticarse para comprar
                             </Link>
                         ) : 'cargo' in user ? (
-                            // Lógica para Admin
                             <div className="w-full py-5 bg-stone-100 text-stone-600 text-center text-xs font-bold uppercase tracking-[0.2em] border border-stone-200">
                                 Vista de Administrador
                             </div>
                         ) : !user.activo ? (
-                            // Lógica para usuario inactivo
                             <div className="w-full py-5 bg-red-100 text-red-800 text-center text-sm font-semibold uppercase tracking-wider border border-red-200 rounded-lg">
                                 Tu cuenta está inactiva. Contacta a soporte para reactivarla.
                             </div>
                         ) : !user.membresiaPaga ? (
-                            // Lógica para Buyer sin membresía
-
                             <MembershipButton
                                 user={user}
                                 onSuccess={(updated) => {
                                     localStorage.setItem('user', JSON.stringify(updated));
                                     setUser(updated);
                                     alert("¡Pago exitoso! Tu membresía ha sido activada y tu código de seguridad generado.");
-                                    console.log("DEBUG - Datos recibidos tras pago:", updated);
                                     queryClient.invalidateQueries({ queryKey: ['art', id] });
                                 }}
                             />
                         ) : art.estatus === 'Reservada' && art.compradorReserva?.id === user.id ? (
-                            // Lógica para cancelar la reserva si es del usuario actual
                             <button
                                 onClick={() => cancelReserveMutation.mutate()}
                                 disabled={cancelReserveMutation.isPending}
@@ -219,13 +291,12 @@ export default function ArtDetailPage() {
                             >
                                 {cancelReserveMutation.isPending ? 'Cancelando...' : 'Cancelar Reserva'}
                             </button>
-                        ) : art.estatus !== 'Disponible' ? ( // Obra no disponible (reservada por otro o vendida)
-
+                        ) : art.estatus !== 'Disponible' ? (
                             <button disabled className="w-full py-5 bg-stone-200 text-stone-500 text-xs font-bold uppercase tracking-[0.3em] cursor-not-allowed">
                                 Obra ya {art.estatus}
                             </button>
                         ) : (
-                            // Lógica para reservar la obra
+                            // La compra usa el id de la URL (= idRelacional de PostgreSQL)
                             <button
                                 onClick={() => reserveMutation.mutate()}
                                 disabled={reserveMutation.isPending}

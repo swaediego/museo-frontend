@@ -14,7 +14,7 @@ export default function AdminArtPage() {
 
     const fetchArts = async () => {
         try {
-            const data = await api.get('api/arts').json<Art[]>();
+            const data = await api.get('api/arts/all').json<Art[]>();
             setArts(data);
         } catch (err) {
             console.error("Error cargando obras:", err);

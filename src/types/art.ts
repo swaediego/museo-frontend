@@ -15,6 +15,56 @@ export interface Genre {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TIPOS MONGODB — Sprint 1: Catálogo Dinámico
+// Estos tipos reflejan el documento BSON de la colección `art_catalog`
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Artista embebido dentro del documento MongoDB (sin relaciones externas) */
+export interface MongoEmbeddedArtist {
+    idArtistaRelacional: number;
+    nombre: string;
+    nacionalidad: string;
+    biografia: string;
+}
+
+/**
+ * Documento MongoDB de la colección `art_catalog`.
+ * Cada obra tiene un campo `detallesEspecificos` polimórfico:
+ *   - Pintura:    { tecnica, estilo }
+ *   - Escultura:  { material, peso, dimensiones: {largo, ancho, profundidad} }
+ *   - Fotografía: { tipoImpresion, papel, edicion }
+ *   - Cerámica:   { tipoArcilla, temperaturaCoccion }
+ *   - Orfebrería: { metalBase, purezaMetal, peso }
+ */
+export interface MongoArtDocument {
+    /** _id de MongoDB (ObjectId como string) */
+    id: string;
+    /** Vínculo con la tabla `art` de PostgreSQL — usar para comprar/facturar */
+    idRelacional: number;
+    nombre: string;
+    precio: number;
+    estatus: 'Disponible' | 'Reservada' | 'Vendida';
+    genero: string;
+    imagenUrl: string;
+    fechaCreacion: number;
+    artista: MongoEmbeddedArtist;
+    /** Campos variables según el género de la obra */
+    detallesEspecificos: Record<string, unknown>;
+}
+
+/** Parámetros para el endpoint POST /api/catalog/filter (Aggregation Framework) */
+export interface MongoFilterParams {
+    precioMin?: number;
+    precioMax?: number;
+    genero?: string;
+    estatus?: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TIPOS POSTGRESQL — Core Transaccional
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Base (Campos comunes que toda Obra tiene)
 // En @/types/art.ts
 

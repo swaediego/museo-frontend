@@ -1,5 +1,5 @@
 import ky from 'ky';
-import { Art, Invoice } from '@/types/art';
+import { Art, Invoice, MongoArtDocument, MongoFilterParams } from '@/types/art';
 
 export const api = ky.create({
 
@@ -40,3 +40,43 @@ export interface UserHistory {
 export const getUserHistory = (compradorId: number): Promise<UserHistory> => {
     return api.get(`api/invoices/user/${compradorId}`).json();
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MONGODB CATALOG API — Sprint 1
+// Fuente de datos para el catálogo dinámico (lecturas rápidas).
+// Las transacciones (compra/factura) siguen usando PostgreSQL vía `api`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Todas las obras del catálogo MongoDB */
+export const getMongoCatalog = (): Promise<MongoArtDocument[]> =>
+    api.get('api/catalog').json<MongoArtDocument[]>();
+
+/** Obra específica por su idRelacional (= id de PostgreSQL) */
+export const getMongoArtByRelationalId = (idRelacional: number): Promise<MongoArtDocument> =>
+    api.get(`api/catalog/${idRelacional}`).json<MongoArtDocument>();
+
+/**
+ * Filtrado avanzado con Aggregation Framework.
+ * Un único endpoint en el backend procesa precio, género y estatus
+ * en un solo pipeline $match → $project → $sort.
+ *
+ * Ejemplo: getMongoFilter({ genero: 'Pintura', precioMin: 500 })
+ */
+export const getMongoFilter = (params: MongoFilterParams): Promise<MongoArtDocument[]> => {
+    const qs = new URLSearchParams();
+    if (params.precioMin !== undefined) qs.set('precioMin', String(params.precioMin));
+    if (params.precioMax !== undefined) qs.set('precioMax', String(params.precioMax));
+    if (params.genero)  qs.set('genero',  params.genero);
+    if (params.estatus) qs.set('estatus', params.estatus);
+
+    const query = qs.toString();
+    return api.post(`api/catalog/filter${query ? `?${query}` : ''}`).json<MongoArtDocument[]>();
+};
+
+/** Estadísticas de obras agrupadas por género */
+export const getMongoStatsByGenero = (): Promise<MongoArtDocument[]> =>
+    api.get('api/catalog/stats/genero').json<MongoArtDocument[]>();
+
+/** Migrar todas las obras de PostgreSQL a MongoDB */
+export const migrateAllToMongo = (): Promise<{ message: string }> =>
+    api.post('api/migration/migrate-all').json<{ message: string }>();
