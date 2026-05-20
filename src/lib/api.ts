@@ -98,6 +98,37 @@ export interface SyncResponse {
 export const syncDeleted = (items: DeletedItem[]): Promise<SyncResponse> =>
     api.post('api/sync', { json: { deletedIds: items } }).json<SyncResponse>();
 
+export interface MetSearchResult {
+    objectId: number;
+    titulo: string;
+    tituloEspanol?: string;
+    artista: string;
+    imagenUrl: string;
+    clasificacion: string;
+}
+
+export interface ImportArtRequest {
+    objectId: number;
+    busqueda: string;
+    tituloEspanol?: string;
+}
+
+export interface ImportArtResponse {
+    success: boolean;
+    message: string;
+    obraId?: number;
+    idRelacional?: number;
+    nombre?: string;
+    tipo?: string;
+    imagenUrl?: string;
+}
+
+export const buscarObrasEnMet = (busqueda: string): Promise<MetSearchResult[]> =>
+    api.post('api/arts/import/buscar', { json: { busqueda } }).json<MetSearchResult[]>();
+
+export const importarObraDesdeMet = (request: ImportArtRequest): Promise<ImportArtResponse> =>
+    api.post('api/arts/import', { json: request }).json<ImportArtResponse>();
+
 /** Migrar todas las obras de PostgreSQL a MongoDB */
 export const migrateAllToMongo = (): Promise<{ message: string }> =>
     api.post('api/migration/migrate-all').json<{ message: string }>();

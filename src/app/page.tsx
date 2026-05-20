@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getMongoFilter } from '@/lib/api';
 import { MongoArtDocument } from '@/types/art';
 import Link from 'next/link';
@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { useSyncOnMount } from '@/hooks/useSyncOnMount';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useRouter } from 'next/navigation';
+import ImportArtModal from '@/components/ImportArtModal';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sprint 1 — Catálogo Dinámico con MongoDB
@@ -17,6 +18,7 @@ import { useRouter } from 'next/navigation';
 
 export default function CatalogPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [search, setSearch]         = useState('');
   const [searchType, setSearchType] = useState<'nombre' | 'artista'>('nombre');
   const [genre, setGenre]           = useState('');
@@ -26,6 +28,7 @@ export default function CatalogPage() {
   const precioMin = useDebounce(precioMinInput, 400);
   const precioMax = useDebounce(precioMaxInput, 400);
   const [sortBy, setSortBy]         = useState<string>('');
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // 0. Sincronizar tombstones al cargar la página
   useSyncOnMount();
@@ -73,13 +76,21 @@ export default function CatalogPage() {
     <div className="min-h-screen bg-stone-50 p-8">
       <div className="max-w-6xl mx-auto">
 
-        <div className="mb-10">
-          <h1 className="text-4xl font-serif mb-1 text-slate-900">Nuestra Colección</h1>
-          {/* Indicador visual de fuente MongoDB */}
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-            Catálogo · MongoDB
-          </span>
+        <div className="mb-10 flex justify-between items-start">
+          <div>
+            <h1 className="text-4xl font-serif mb-1 text-slate-900">Nuestra Colección</h1>
+            {/* Indicador visual de fuente MongoDB */}
+            <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+              Catálogo · MongoDB
+            </span>
+          </div>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition"
+          >
+            <span className="text-lg">+</span> Importar Obra
+          </button>
         </div>
 
         {/* ── BARRA DE FILTROS ── */}
@@ -202,6 +213,12 @@ export default function CatalogPage() {
           <p className="text-center text-stone-400 py-20">No se encontraron obras con esos criterios.</p>
         )}
       </div>
+
+      <ImportArtModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={() => queryClient.invalidateQueries({ queryKey: ['mongo-catalog'] })}
+      />
     </div>
   );
 }
