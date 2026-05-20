@@ -24,10 +24,11 @@ export default function RegisterAdminPage() {
             return;
         }
 
-        const user = JSON.parse(storedUser);
+        const authData = JSON.parse(storedUser);
+        const user = authData.user;
 
         // 2. Si no tiene la propiedad 'cargo', no es admin
-        if (!user.cargo) {
+        if (!user || !user.cargo) {
             alert("Acceso denegado: Se requieren permisos de administrador.");
             router.push('/'); // Redirigir a la home o perfil
         } else {

@@ -25,13 +25,14 @@ export default function AdminBuyersPage() {
     }, [soloActivos]);
 
     const handleDeactivation = async (id: number) => {
-        if (!confirm("¿Estás seguro de desactivar este comprador?, Ya no podrá acceder al sistema")) return;
+        if (!confirm("¿Estás seguro de cambiar el estado de este comprador?")) return;
 
         try {
             await api.patch(`api/buyers/${id}/desactivar`);
-            setBuyers(buyers.filter(b => b.id !== id));
+            await fetchBuyers();
+            alert("Estatus del comprador actualizado.");
         } catch (error) {
-            alert("Error al intentar eliminar el comprador.");
+            alert("Error al intentar cambiar el estado del comprador.");
             console.log(error)
         }
     };

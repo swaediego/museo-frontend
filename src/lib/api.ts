@@ -68,6 +68,7 @@ export const getMongoFilter = (params: MongoFilterParams): Promise<MongoArtDocum
     if (params.precioMax !== undefined) qs.set('precioMax', String(params.precioMax));
     if (params.genero)  qs.set('genero',  params.genero);
     if (params.estatus) qs.set('estatus', params.estatus);
+    if (params.sortBy)  qs.set('sortBy',  params.sortBy);
 
     const query = qs.toString();
     return api.post(`api/catalog/filter${query ? `?${query}` : ''}`).json<MongoArtDocument[]>();
@@ -76,6 +77,26 @@ export const getMongoFilter = (params: MongoFilterParams): Promise<MongoArtDocum
 /** Estadísticas de obras agrupadas por género */
 export const getMongoStatsByGenero = (): Promise<MongoArtDocument[]> =>
     api.get('api/catalog/stats/genero').json<MongoArtDocument[]>();
+
+export interface DeletedItem {
+    type: 'art' | 'artist';
+    id: number;
+    timestamp?: number;
+}
+
+export interface SyncRequest {
+    deletedIds: DeletedItem[];
+}
+
+export interface SyncResponse {
+    processed: number[];
+    notFound: number[];
+    message: string;
+}
+
+/** Sincronizar elementos eliminados offline */
+export const syncDeleted = (items: DeletedItem[]): Promise<SyncResponse> =>
+    api.post('api/sync', { json: { deletedIds: items } }).json<SyncResponse>();
 
 /** Migrar todas las obras de PostgreSQL a MongoDB */
 export const migrateAllToMongo = (): Promise<{ message: string }> =>

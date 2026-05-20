@@ -9,10 +9,10 @@ export default function AdminAdminsPage() {
     const router = useRouter();
     const [admins, setAdmins] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
 
     const fetchAdmins = async () => {
         try {
-            //TODO: verificar que este endpoint exista
             const data = await api.get('api/admins').json<User[]>();
             setAdmins(data);
         } catch (err) {
@@ -23,17 +23,24 @@ export default function AdminAdminsPage() {
     };
 
     useEffect(() => {
+        const stored = localStorage.getItem('user');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            setCurrentUser(parsed.user || parsed);
+        }
         fetchAdmins();
     }, []);
 
     if (loading) return <div className="p-32 text-center">Cargando administradores...</div>;
 
+    const isCurrentUserPrincipal = currentUser && 'rol' in currentUser && currentUser.rol === 'PRINCIPAL';
+
     const handleDelete = async (id: number) => {
         if (!confirm("¿Estás seguro de eliminar este administrador?")) return;
 
         try {
-             //TODO: verificar que este endpoint exista
-            await api.delete(`api/admins/${id}`);
+            const requesterId = currentUser?.id;
+            await api.delete(`api/admins/${id}?requesterId=${requesterId}`);
             setAdmins(prev => prev.filter(admin => admin.id !== id));
             alert("Administrador eliminado con éxito.");
         } catch (err) {
@@ -58,31 +65,49 @@ export default function AdminAdminsPage() {
                             <th className="pb-4">Nombre</th>
                             <th className="pb-4">Email</th>
                             <th className="pb-4">Cargo</th>
+                            <th className="pb-4">Rol</th>
                             <th className="pb-4 text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
-                        {admins.map((admin) => (
-                            <tr key={admin.id} className="text-sm">
-                                <td className="py-4 font-bold text-slate-900">{admin.nombre} {admin.apellido}</td>
-                                <td className="py-4 text-stone-600">{admin.email}</td>
-                                <td className="py-4 text-stone-600">{admin.cargo}</td>
-                                <td className="py-4 text-right">
-                                    <Link
-                                        href={`/admin/admins/crear-admin?id=${admin.id}`}
-                                        className="text-stone-400 hover:text-slate-900 mx-2"
-                                    >
-                                        Editar
-                                    </Link>
-                                    <button
-                                        onClick={() => handleDelete(admin.id)}
-                                        className="font-bold text-red-400 hover:text-red-600 cursor-pointer"
-                                    >
-                                        Eliminar
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
+                        {admins.map((admin) => {
+                            const isPrincipal = 'rol' in admin && admin.rol === 'PRINCIPAL';
+                            const isCurrentUserSecondary = !isCurrentUserPrincipal;
+                            const isEditingSelf = currentUser && currentUser.id === admin.id;
+                            const canEdit = isCurrentUserPrincipal || isEditingSelf;
+                            const showDelete = isCurrentUserPrincipal && !isPrincipal;
+                            const adminCargo = (admin as any).cargo;
+                            return (
+                                <tr key={admin.id} className="text-sm">
+                                    <td className="py-4 font-bold text-slate-900">{admin.nombre} {admin.apellido}</td>
+                                    <td className="py-4 text-stone-600">{admin.email}</td>
+                                    <td className="py-4 text-stone-600">{adminCargo?.nombre || 'Sin cargo'}</td>
+                                    <td className="py-4">
+                                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${isPrincipal ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>
+                                            {isPrincipal ? 'PRINCIPAL' : 'SECUNDARIO'}
+                                        </span>
+                                    </td>
+                                    <td className="py-4 text-right">
+                                        {canEdit && (
+                                            <Link
+                                                href={`/admin/admins/crear-admin?id=${admin.id}`}
+                                                className="text-stone-400 hover:text-slate-900 mx-2"
+                                            >
+                                                Editar
+                                            </Link>
+                                        )}
+                                        {showDelete && (
+                                            <button
+                                                onClick={() => handleDelete(admin.id)}
+                                                className="font-bold text-red-400 hover:text-red-600 cursor-pointer"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

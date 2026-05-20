@@ -7,7 +7,8 @@ const adminModules = [
     { title: "Gestionar catalogo de arte", path: "/admin/art", description: "Gestionar obras, precios y disponibilidad.", color: "bg-emerald-50 text-emerald-700" },
     { title: "Gestionar artistas", path: "/admin/artists", description: "Gestionar artistas existentes en el sistema.", color: "bg-purple-50 text-purple-700" },
     { title: "Gestionar generos", path: "/admin/generos", description: "Gestionar generos existentes en el sistema.", color: "bg-yellow-50 text-yellow-700" },
-    { title: "Gestionar facturas", path: "/admin/facturacion", description: "Gestionar las facturas del sistema.", color: "bg-pink-50 text-pink-700" }
+    { title: "Gestionar facturas", path: "/admin/facturacion", description: "Gestionar las facturas del sistema.", color: "bg-pink-50 text-pink-700" },
+    { title: "Reportes administrativos", path: "/admin/reportes", description: "Ver informes de ventas y membresías con filtros de fechas.", color: "bg-amber-50 text-amber-700" }
 
 ];
 

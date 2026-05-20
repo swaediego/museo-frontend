@@ -20,17 +20,31 @@ export default function ArtistaPage() {
 
     const { artista } = artistaObra;
 
+    const formatBirthdate = (dateStr?: string) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+    };
+
     return (
         <div className="min-h-screen bg-white">
             {/* HEADER DEL ARTISTA */}
             <header className="bg-gray-900 text-white py-20 px-6">
                 <div className="max-w-4xl mx-auto text-center">
-                    <div className="w-32 h-32 bg-gray-700 rounded-full mx-auto mb-6 flex items-center justify-center text-4xl border-4 border-blue-500">
-                        {artista.nombre.charAt(0)}
-                    </div>
+                    {artista.fotoUrl ? (
+                        <div className="relative w-32 h-32 mx-auto mb-6 rounded-full overflow-hidden border-4 border-blue-500 shadow-lg">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={artista.fotoUrl} alt={artista.nombre} className="object-cover w-full h-full" />
+                        </div>
+                    ) : (
+                        <div className="w-32 h-32 bg-gray-700 rounded-full mx-auto mb-6 flex items-center justify-center text-4xl border-4 border-blue-500">
+                            {artista.nombre.charAt(0)}
+                        </div>
+                    )}
                     <h1 className="text-5xl font-serif font-bold mb-2">{artista.nombre}</h1>
                     <p className="text-blue-400 font-medium tracking-widest uppercase text-sm mb-6">
-                        {artista.nacionalidad}
+                        {artista.nacionalidad} {artista.fechaNacimiento && `· Nacimiento: ${formatBirthdate(artista.fechaNacimiento)}`}
                     </p>
                     <div className="max-w-2xl mx-auto text-gray-300 leading-relaxed italic">
                         {`${artista.biografia}`}

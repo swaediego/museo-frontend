@@ -18,7 +18,7 @@ export default function ArtCard({ art }: { art: Art }) {
             {/* SECCIÓN DE IMAGEN */}
             <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
                 <Image
-                    src={art.imagenUrl || 'https://via.placeholder.com/400x300?text=Sin+Imagen'}
+                    src={art.imagenUrl || 'https://via.placeholder.com/400x300?text=undefined'}
                     alt={art.nombre || 'Obra de arte'}
                     fill
                     sizes="(max-width: 768px) 100vw, 33vw"

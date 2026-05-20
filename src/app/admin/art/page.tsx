@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { Art } from '@/types/art'; // Asegúrate de tener tu tipo Art definido
+import { Art } from '@/types/art';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { addToSyncQueue } from '@/lib/syncQueue';
 
 export default function AdminArtPage() {
     const router = useRouter();
@@ -35,6 +36,7 @@ export default function AdminArtPage() {
 
         try {
             await api.delete(`api/arts/${id}`);
+            addToSyncQueue({ type: 'art', id });
             setArts(prev => prev.filter(art => art.id !== id));
             alert("Obra eliminada con éxito.");
         } catch (err) {

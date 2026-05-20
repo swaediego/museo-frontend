@@ -84,7 +84,12 @@ export default function LoginPage() {
                     <Link href="/register" className="text-slate-900 font-bold hover:underline">
                         Regístrate
                     </Link>
-
+                </p>
+                <p className="text-center mt-2 text-sm text-stone-500">
+                    ¿Olvidaste tu código de seguridad?{' '}
+                    <Link href="/recover-code" className="text-amber-700 font-bold hover:underline">
+                        Recuperar código
+                    </Link>
                 </p>
                 <div className="text-center mt-8 text-sm text-stone-500 space-y-2">
 

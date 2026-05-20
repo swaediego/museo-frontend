@@ -195,7 +195,7 @@ export default function NuevaObraPage() {
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         const anio = Number(formData.fechaCreacion);
@@ -227,7 +227,7 @@ export default function NuevaObraPage() {
             case 'Escultura':
                 finalPayload = { ...finalPayload, material: formData.material, peso: formData.peso, largo: formData.largo, ancho: formData.ancho, profundidad: formData.profundidad };
                 break;
-            case 'Orfebrería':
+            case 'Orfebreria':
                 finalPayload = { ...finalPayload, purezaMetal: formData.purezaMetal, metalBase: formData.metalBase, peso: formData.peso };
                 break;
             case 'Fotografia':
@@ -240,7 +240,15 @@ export default function NuevaObraPage() {
 
         if (id) {
             // modo editar
-            api.put(`api/arts/${id}`, { json: finalPayload });
+            try {
+                await api.put(`api/arts/${id}`, { json: finalPayload }).json();
+                queryClient.invalidateQueries({ queryKey: ['arts'] });
+                alert('¡Obra actualizada con éxito!');
+                router.push('/admin/dashboard');
+            } catch (err) {
+                alert('Error al actualizar la obra.');
+                console.error(err);
+            }
         } else {
             // modo crear
             mutation.mutate(finalPayload);

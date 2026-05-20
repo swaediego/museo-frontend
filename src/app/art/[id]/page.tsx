@@ -15,6 +15,8 @@ export default function ArtDetailPage() {
     const { id } = useParams();
     const queryClient = useQueryClient();
     const [user, setUser] = useState<Buyer | null>(null);
+    const [showSecurityModal, setShowSecurityModal] = useState(false);
+    const [securityCodeInput, setSecurityCodeInput] = useState('');
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -45,17 +47,18 @@ export default function ArtDetailPage() {
 
     // ── 3. Mutación: Reservar obra (usa idRelacional = id PostgreSQL)
     const reserveMutation = useMutation({
-        mutationFn: () => {
+        mutationFn: (securityCode: string) => {
             const storedUser = localStorage.getItem('user');
             const parsed = storedUser ? JSON.parse(storedUser) : null;
             const buyerId = parsed?.user?.id || parsed?.id;
             if (!buyerId) throw new Error("No se pudo obtener el ID del comprador");
-            return api.post(`api/arts/${id}/reservar/${buyerId}`);
+            return api.post(`api/arts/${id}/reservar/${buyerId}?securityCode=${encodeURIComponent(securityCode)}`);
         },
         onSuccess: () => {
             alert(`¡Éxito! La obra ha sido reservada.`);
             queryClient.invalidateQueries({ queryKey: ['art', id] });
             queryClient.invalidateQueries({ queryKey: ['obras-reservadas'] });
+            setSecurityCodeInput('');
         },
         onError: async (err: any) => {
             const errorMessage = await err.response?.text().catch(() => 'Error desconocido');
@@ -197,8 +200,8 @@ export default function ArtDetailPage() {
                 {/* Imagen */}
                 <div className="bg-white p-4 shadow-2xl rotate-1 border border-stone-200">
                     <Image
-                        src={art.imagenUrl || 'https://via.placeholder.com/600'}
-                        alt={art.nombre}
+                        src={art.imagenUrl || 'https://via.placeholder.com/600?text=undefined'}
+                        alt={art.nombre || 'undefined'}
                         width={600}
                         height={400}
                         className="w-full h-auto object-cover"
@@ -298,7 +301,10 @@ export default function ArtDetailPage() {
                         ) : (
                             // La compra usa el id de la URL (= idRelacional de PostgreSQL)
                             <button
-                                onClick={() => reserveMutation.mutate()}
+                                onClick={() => {
+                                    setSecurityCodeInput('');
+                                    setShowSecurityModal(true);
+                                }}
                                 disabled={reserveMutation.isPending}
                                 className="w-full py-5 bg-slate-950 text-white text-xs font-bold uppercase tracking-[0.3em] hover:bg-white hover:text-slate-950 border-2 border-slate-950 transition-all duration-300 shadow-xl"
                             >
@@ -308,6 +314,58 @@ export default function ArtDetailPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal de Código de Seguridad */}
+            {showSecurityModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-stone-100">
+                        <h3 className="text-2xl font-serif font-bold text-slate-900 mb-2">Confirmar Reserva</h3>
+                        <p className="text-xs text-stone-500 mb-6">
+                            Introduce tu código de seguridad alfanumérico de 10 caracteres enviado a tu correo al pagar la membresía.
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-black uppercase tracking-widest mb-1.5">Código de Seguridad</label>
+                                <input
+                                    type="text"
+                                    maxLength={10}
+                                    placeholder="AB12CD34EF"
+                                    value={securityCodeInput}
+                                    onChange={(e) => setSecurityCodeInput(e.target.value.toUpperCase())}
+                                    className="w-full text-center tracking-widest font-mono text-xl uppercase px-4 py-3 rounded-xl border-2 border-stone-850 focus:ring-2 focus:ring-black outline-none text-slate-950"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => {
+                                        setShowSecurityModal(false);
+                                        setSecurityCodeInput('');
+                                    }}
+                                    className="flex-1 py-3 border-2 border-stone-200 text-stone-600 rounded-xl font-bold hover:border-stone-800 hover:text-stone-900 transition-all text-xs uppercase"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (securityCodeInput.length !== 10) {
+                                            alert('El código de seguridad debe tener exactamente 10 caracteres.');
+                                            return;
+                                        }
+                                        setShowSecurityModal(false);
+                                        reserveMutation.mutate(securityCodeInput);
+                                    }}
+                                    disabled={reserveMutation.isPending}
+                                    className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-xs uppercase shadow-md active:scale-95"
+                                >
+                                    Confirmar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

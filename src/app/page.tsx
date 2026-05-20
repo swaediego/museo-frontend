@@ -5,6 +5,9 @@ import { api, getMongoFilter } from '@/lib/api';
 import { MongoArtDocument } from '@/types/art';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSyncOnMount } from '@/hooks/useSyncOnMount';
+import { useDebounce } from '@/hooks/useDebounce';
+import { useRouter } from 'next/navigation';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sprint 1 — Catálogo Dinámico con MongoDB
@@ -13,12 +16,19 @@ import Image from 'next/image';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function CatalogPage() {
+  const router = useRouter();
   const [search, setSearch]         = useState('');
   const [searchType, setSearchType] = useState<'nombre' | 'artista'>('nombre');
   const [genre, setGenre]           = useState('');
   const [estatus, setEstatus]       = useState('');
-  const [precioMin, setPrecioMin]   = useState<string>('');
-  const [precioMax, setPrecioMax]   = useState<string>('');
+  const [precioMinInput, setPrecioMinInput]   = useState<string>('');
+  const [precioMaxInput, setPrecioMaxInput]   = useState<string>('');
+  const precioMin = useDebounce(precioMinInput, 400);
+  const precioMax = useDebounce(precioMaxInput, 400);
+  const [sortBy, setSortBy]         = useState<string>('');
+
+  // 0. Sincronizar tombstones al cargar la página
+  useSyncOnMount();
 
   // 1. Géneros desde PostgreSQL (lista maestra)
   const { data: genres } = useQuery({
@@ -29,12 +39,13 @@ export default function CatalogPage() {
   // 2. Catálogo desde MongoDB — un único pipeline de Aggregation Framework
   //    procesa género, estatus y precio en una sola operación eficiente.
   const { data: arts, isLoading } = useQuery({
-    queryKey: ['mongo-catalog', genre, estatus, precioMin, precioMax],
+    queryKey: ['mongo-catalog', genre, estatus, precioMin, precioMax, sortBy],
     queryFn: () => getMongoFilter({
       genero:   genre   || undefined,
       estatus:  estatus || undefined,
       precioMin: precioMin ? Number(precioMin) : undefined,
       precioMax: precioMax ? Number(precioMax) : undefined,
+      sortBy:   sortBy  || undefined,
     })
   });
 
@@ -142,23 +153,38 @@ export default function CatalogPage() {
               <input
                 type="number"
                 placeholder="Mín"
-                value={precioMin}
-                onChange={(e) => setPrecioMin(e.target.value)}
+                value={precioMinInput}
+                onChange={(e) => setPrecioMinInput(e.target.value)}
                 className="w-full border-2 border-stone-800 rounded-xl px-3 py-3 outline-none text-stone-900 font-bold text-sm"
               />
               <input
                 type="number"
                 placeholder="Máx"
-                value={precioMax}
-                onChange={(e) => setPrecioMax(e.target.value)}
+                value={precioMaxInput}
+                onChange={(e) => setPrecioMaxInput(e.target.value)}
                 className="w-full border-2 border-stone-800 rounded-xl px-3 py-3 outline-none text-stone-900 font-bold text-sm"
               />
             </div>
           </div>
 
+          {/* 5. Ordenamiento */}
+          <div className="flex flex-col min-w-[180px]">
+            <label className="text-xs font-black uppercase tracking-[0.15em] text-stone-900 mb-2 block ml-1">
+              Ordenar Por
+            </label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="border-2 border-stone-800 rounded-xl px-4 py-3 outline-none bg-white text-stone-900 font-black text-sm cursor-pointer hover:bg-stone-50 transition-all appearance-none shadow-sm"
+            >
+              <option value="">Por defecto</option>
+              <option value="precioAsc">Precio: Menor a Mayor</option>
+            </select>
+          </div>
+
           {/* Botón limpiar */}
           <button
-            onClick={() => { setGenre(''); setEstatus(''); setPrecioMin(''); setPrecioMax(''); setSearch(''); }}
+            onClick={() => { setGenre(''); setEstatus(''); setPrecioMinInput(''); setPrecioMaxInput(''); setSearch(''); setSortBy(''); }}
             className="px-5 py-3 rounded-xl font-black text-xs uppercase tracking-tighter border-2 border-stone-300 text-stone-500 hover:border-stone-800 hover:text-stone-900 transition-all"
           >
             Limpiar filtros
@@ -168,7 +194,7 @@ export default function CatalogPage() {
         {/* ── GRILLA DE RESULTADOS ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredArts?.map(art => (
-            <MongoArtCard key={art.id} art={art} badgeColor={badgeColor} />
+            <MongoArtCard key={art.id} art={art} badgeColor={badgeColor} router={router} />
           ))}
         </div>
 
@@ -188,20 +214,22 @@ export default function CatalogPage() {
 function MongoArtCard({
   art,
   badgeColor,
+  router,
 }: {
   art: MongoArtDocument;
   badgeColor: (s: string) => string;
+  router: ReturnType<typeof useRouter>;
 }) {
   return (
-    <Link
-      href={`/art/${art.idRelacional}`}
-      className="group bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+    <div
+      onClick={() => router.push(`/art/${art.idRelacional}`)}
+      className="group bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer"
     >
       {/* Imagen */}
       <div className="relative h-56 bg-stone-100 overflow-hidden">
         <Image
-          src={art.imagenUrl || 'https://via.placeholder.com/400x300'}
-          alt={art.nombre}
+          src={art.imagenUrl || 'https://via.placeholder.com/400x300?text=undefined'}
+          alt={art.nombre || 'undefined'}
           fill
           className="object-cover group-hover:scale-105 transition-transform duration-500"
         />
@@ -221,12 +249,19 @@ function MongoArtCard({
         <h2 className="text-lg font-serif font-semibold text-slate-900 leading-tight mb-1 line-clamp-1">
           {art.nombre}
         </h2>
-        <p className="text-sm text-stone-500 mb-3 font-light">
-          por <span className="font-medium text-stone-700">{art.artista?.nombre}</span>
+        <div className="text-sm text-stone-500 mb-3 font-light">
+          por{' '}
+          <Link
+            href={`/artista/${art.artista?.idArtistaRelacional}`}
+            onClick={(e) => e.stopPropagation()}
+            className="font-medium text-stone-700 hover:text-stone-900 underline underline-offset-4 decoration-stone-400 decoration-1"
+          >
+            {art.artista?.nombre}
+          </Link>
           {art.artista?.nacionalidad && (
             <span className="text-stone-400"> · {art.artista.nacionalidad}</span>
           )}
-        </p>
+        </div>
 
         {/* Polimorfismo: muestra hasta 2 detallesEspecificos como pills */}
         {art.detallesEspecificos && Object.keys(art.detallesEspecificos).length > 0 && (
@@ -241,8 +276,8 @@ function MongoArtCard({
           </div>
         )}
 
-        <p className="text-xl font-black text-slate-900">${art.precio.toLocaleString()}</p>
+        <p className="text-xl font-black text-slate-900">${(art.precio ?? 0).toLocaleString()}</p>
       </div>
-    </Link>
+    </div>
   );
 }

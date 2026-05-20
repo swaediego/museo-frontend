@@ -59,6 +59,7 @@ export interface MongoFilterParams {
     precioMax?: number;
     genero?: string;
     estatus?: string;
+    sortBy?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -102,6 +103,7 @@ export interface User {
     fechaRegistro: string;
     activo: boolean;
     cargo?: string;
+    rol?: 'PRINCIPAL' | 'SECUNDARIO';
 }
 
 export interface Buyer extends User {
