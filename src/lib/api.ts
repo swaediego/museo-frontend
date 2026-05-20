@@ -4,8 +4,8 @@ import { Art, Invoice, MongoArtDocument, MongoFilterParams } from '@/types/art';
 export const api = ky.create({
 
     prefixUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
-    // Tiempo máximo de espera para la respuesta en ms
-    timeout: 10000,
+    // Tiempo máximo de espera para la respuesta en ms (120s para Ollama IA)
+    timeout: 120000,
 
     // Configuraciones comunes
     headers: {
@@ -121,13 +121,34 @@ export interface ImportArtResponse {
     nombre?: string;
     tipo?: string;
     imagenUrl?: string;
+    clasificacionSugeridaIA?: string;
+    detallesExtraidos?: Record<string, unknown>;
 }
 
 export const buscarObrasEnMet = (busqueda: string): Promise<MetSearchResult[]> =>
     api.post('api/arts/import/buscar', { json: { busqueda } }).json<MetSearchResult[]>();
 
-export const importarObraDesdeMet = (request: ImportArtRequest): Promise<ImportArtResponse> =>
-    api.post('api/arts/import', { json: request }).json<ImportArtResponse>();
+export const importarObraDesdeMet = async (request: ImportArtRequest): Promise<ImportArtResponse> => {
+    try {
+        return await api.post('api/arts/import', { json: request }).json<ImportArtResponse>();
+    } catch (err: unknown) {
+        // Ky throws HTTPError for non-2xx responses
+        if (err && typeof err === 'object' && 'response' in err) {
+            const httpErr = err as { response: Response };
+            try {
+                const body = await httpErr.response.json() as ImportArtResponse;
+                throw new Error(body.message || 'Error desconocido al importar la obra');
+            } catch (parseErr) {
+                if (parseErr instanceof Error && parseErr.message !== 'Error desconocido al importar la obra') {
+                    // JSON parse failed, re-check if it's our own throw
+                    if ((parseErr as Error).message) throw parseErr;
+                }
+                throw parseErr;
+            }
+        }
+        throw new Error('No se pudo conectar con el servidor. Verifica que el backend esté en ejecución.');
+    }
+};
 
 /** Migrar todas las obras de PostgreSQL a MongoDB */
 export const migrateAllToMongo = (): Promise<{ message: string }> =>
