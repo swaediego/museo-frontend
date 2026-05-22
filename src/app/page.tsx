@@ -9,12 +9,33 @@ import { useSyncOnMount } from '@/hooks/useSyncOnMount';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useRouter } from 'next/navigation';
 import ImportArtModal from '@/components/ImportArtModal';
+import BuyerInfoTooltip from '@/components/BuyerInfoTooltip';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sprint 1 — Catálogo Dinámico con MongoDB
 // La consulta principal usa POST /api/catalog/filter (Aggregation Framework).
 // Géneros siguen viniendo de PostgreSQL (fuente de verdad transaccional).
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Helper: capitalizar primera letra de cada palabra ("la noche estrellada" → "La Noche Estrellada")
+function toTitleCase(str: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function badgeColor(estatus: string): string {
+  const map: Record<string, string> = {
+    'Disponible': 'bg-emerald-500 text-white',
+    'Reservada': 'bg-amber-500 text-white',
+    'Vendida': 'bg-red-600 text-white',
+    'Préstamo': 'bg-blue-500 text-white',
+  };
+  return map[estatus] || 'bg-stone-400 text-white';
+}
 
 export default function CatalogPage() {
   const router = useRouter();
@@ -41,7 +62,7 @@ export default function CatalogPage() {
 
   // 2. Catálogo desde MongoDB — un único pipeline de Aggregation Framework
   //    procesa género, estatus y precio en una sola operación eficiente.
-  const { data: arts, isLoading } = useQuery({
+  const { data: arts, isLoading, isError, error } = useQuery({
     queryKey: ['mongo-catalog', genre, estatus, precioMin, precioMax, sortBy],
     queryFn: () => getMongoFilter({
       genero:   genre   || undefined,
@@ -49,28 +70,23 @@ export default function CatalogPage() {
       precioMin: precioMin ? Number(precioMin) : undefined,
       precioMax: precioMax ? Number(precioMax) : undefined,
       sortBy:   sortBy  || undefined,
-    })
+    }),
+    retry: 2,
+    staleTime: 30 * 1000,
   });
 
-  // 3. Filtro local por nombre u artista (búsqueda de texto)
+// 3. Filtro local por nombre u artista (búsqueda de texto)
   const filteredArts = arts?.filter(art => {
     const term = search.toLowerCase();
     if (!term) return true;
-    if (searchType === 'nombre') return art.nombre.toLowerCase().includes(term);
-    return art.artista?.nombre.toLowerCase().includes(term);
-  });
+    if (searchType === 'nombre') return art.nombre?.toLowerCase().includes(term);
+    return art.artista?.nombre?.toLowerCase().includes(term);
+  }) ?? [];
 
-  const badgeColor = (est: string) => {
-    if (est === 'Disponible') return 'bg-green-100 text-green-700';
-    if (est === 'Reservada')  return 'bg-amber-100 text-amber-700';
-    return 'bg-stone-200 text-stone-600';
-  };
-
-  if (isLoading) return (
-    <div className="flex items-center justify-center min-h-screen bg-stone-50">
-      <p className="text-2xl font-serif text-stone-400 animate-pulse">Cargando galería…</p>
-    </div>
-  );
+  // Admin check for import button
+  const adminToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const adminUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
+  const isAdminUser = adminToken && (adminUser.rol === 'PRINCIPAL' || adminUser.rol === 'ADMIN');
 
   return (
     <div className="min-h-screen bg-stone-50 p-8">
@@ -85,12 +101,15 @@ export default function CatalogPage() {
               Catálogo · MongoDB
             </span>
           </div>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition"
-          >
-            <span className="text-lg">+</span> Importar Obra
-          </button>
+          {/* Botón importar solo visible para administradores */}
+          {isAdminUser && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition"
+            >
+              <span className="text-lg">+</span> Importar Obra
+            </button>
+          )}
         </div>
 
         {/* ── BARRA DE FILTROS ── */}
@@ -190,6 +209,7 @@ export default function CatalogPage() {
             >
               <option value="">Por defecto</option>
               <option value="precioAsc">Precio: Menor a Mayor</option>
+              <option value="precioDesc">Precio: Mayor a Menor</option>
             </select>
           </div>
 
@@ -246,12 +266,12 @@ function MongoArtCard({
       <div className="relative h-56 bg-stone-100 overflow-hidden">
         <Image
           src={art.imagenUrl || 'https://via.placeholder.com/400x300?text=undefined'}
-          alt={art.nombre || 'undefined'}
+          alt={toTitleCase(art.nombre) || 'undefined'}
           fill
           className="object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <span className={`absolute top-3 right-3 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-full ${badgeColor(art.estatus)}`}>
-          {art.estatus}
+          <BuyerInfoTooltip artIdRelacional={art.idRelacional} estatus={art.estatus} />
         </span>
         <span className="absolute top-3 left-3 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest rounded-full bg-black/60 text-white">
           MongoDB
@@ -264,7 +284,7 @@ function MongoArtCard({
           {art.genero}
         </p>
         <h2 className="text-lg font-serif font-semibold text-slate-900 leading-tight mb-1 line-clamp-1">
-          {art.nombre}
+          {toTitleCase(art.nombre)}
         </h2>
         <div className="text-sm text-stone-500 mb-3 font-light">
           por{' '}
@@ -273,7 +293,7 @@ function MongoArtCard({
             onClick={(e) => e.stopPropagation()}
             className="font-medium text-stone-700 hover:text-stone-900 underline underline-offset-4 decoration-stone-400 decoration-1"
           >
-            {art.artista?.nombre}
+            {toTitleCase(art.artista?.nombre)}
           </Link>
           {art.artista?.nacionalidad && (
             <span className="text-stone-400"> · {art.artista.nacionalidad}</span>

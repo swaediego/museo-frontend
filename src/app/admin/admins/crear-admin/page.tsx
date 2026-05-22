@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -13,7 +13,7 @@ interface Cargo {
     descripcion: string;
 }
 
-export default function CrearAdminPage() {
+function CrearAdminPageContent() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
@@ -127,7 +127,7 @@ export default function CrearAdminPage() {
             return;
         }
 
-        const payload = { ...formData };
+        const payload = { ...formData } as any;
         if (!payload.password) {
             delete payload.password;
         }
@@ -222,7 +222,7 @@ export default function CrearAdminPage() {
                             <label className="block text-xs font-bold text-black uppercase mb-2">Rol</label>
                             <select
                                 value={formData.rol}
-                                onChange={e => setFormData(prev => ({ ...prev, rol: e.target.value }))}
+                                onChange={e => setFormData(prev => ({ ...prev, rol: e.target.value as 'PRINCIPAL' | 'SECUNDARIO' }))}
                                 className="w-full p-3 bg-white text-black rounded-xl border border-stone-300"
                             >
                                 <option value="SECUNDARIO">Secundario</option>
@@ -242,5 +242,13 @@ export default function CrearAdminPage() {
                 </form>
             </div>
         </div>
+    );
+}
+
+export default function CrearAdminPage() {
+    return (
+        <Suspense fallback={<div className="p-8">Cargando...</div>}>
+            <CrearAdminPageContent />
+        </Suspense>
     );
 }

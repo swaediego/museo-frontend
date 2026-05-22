@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { Artist, Genre, Art, CreateArtDTO } from '@/types/art';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 const FormInput = ({ label, value, onChange, type = "text" }: any) => (
@@ -20,7 +21,7 @@ const FormInput = ({ label, value, onChange, type = "text" }: any) => (
 
 
 //COMPONENTE PRINCIPAL
-export default function NuevaObraPage() {
+function NuevaObraPageContent() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
@@ -364,5 +365,14 @@ export default function NuevaObraPage() {
                 </form>
             </div>
         </div>
+    );
+}
+
+
+export default function NuevaObraPage() {
+    return (
+        <Suspense fallback={<div className="p-8">Cargando...</div>}>
+            <NuevaObraPageContent />
+        </Suspense>
     );
 }
