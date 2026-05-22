@@ -3,6 +3,20 @@
 import { useState } from 'react';
 import { buscarObrasEnMet, importarObraDesdeMet, MetSearchResult, ImportArtRequest, ImportArtResponse } from '@/lib/api';
 
+// Verificar si el usuario es admin
+function isAdmin(): boolean {
+  if (typeof window === 'undefined') return false;
+  const token = localStorage.getItem('token');
+  const userStr = localStorage.getItem('user');
+  if (!token || !userStr) return false;
+  try {
+    const user = JSON.parse(userStr);
+    return user.rol === 'PRINCIPAL' || user.rol === 'ADMIN';
+  } catch {
+    return false;
+  }
+}
+
 interface ImportArtModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -28,8 +42,19 @@ const DETAIL_LABELS: Record<string, string> = {
     fechaCreacion: '📅 Fecha de Creación',
 };
 
+// Helper: capitalizar primera letra de cada palabra
+function toTitleCase(str: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 export default function ImportArtModal({ isOpen, onClose, onImportSuccess }: ImportArtModalProps) {
     const [busqueda, setBusqueda] = useState('');
+    const [artistaFiltro, setArtistaFiltro] = useState('');
     const [resultados, setResultados] = useState<MetSearchResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [importing, setImporting] = useState<number | null>(null);
@@ -58,16 +83,32 @@ export default function ImportArtModal({ isOpen, onClose, onImportSuccess }: Imp
         setImportResult(null);
         setResultados([]);
         try {
-            const results = await buscarObrasEnMet(busqueda);
-            setResultados(results);
+            const response = await buscarObrasEnMet(busqueda, artistaFiltro || undefined);
+            
+            // Verificar si hay mensaje de error amigable
+            if (response.success === false && response.message) {
+                setError(response.message);
+                if (response.sugerencias && response.sugerencias.length > 0) {
+                    setResultados(response.sugerencias);
+                } else {
+                    setResultados([]);
+                }
+            } else if (response.resultados) {
+                setResultados(response.resultados);
+            }
         } catch (e) {
-            setError('Error al buscar en MET Museum');
+            setError('Error al conectar con el servidor. Verifica que el backend esté en ejecución.');
+            setResultados([]);
         } finally {
             setLoading(false);
         }
     };
 
     const handleImportar = async (result: MetSearchResult) => {
+        if (!isAdmin()) {
+            setError('Solo los administradores pueden importar obras.');
+            return;
+        }
         setImporting(result.objectId);
         setProcessingAI(true);
         setError(null);
@@ -125,11 +166,11 @@ export default function ImportArtModal({ isOpen, onClose, onImportSuccess }: Imp
                         {/* Artwork Summary */}
                         <div className="flex gap-4 items-start">
                             {importResult.imagenUrl && (
-                                <img src={importResult.imagenUrl} alt={importResult.nombre}
+                                <img src={importResult.imagenUrl} alt={toTitleCase(importResult.nombre || '')}
                                      className="w-20 h-20 rounded-xl object-cover shadow-md flex-shrink-0" />
                             )}
                             <div className="min-w-0">
-                                <h3 className="font-bold text-stone-900 text-lg leading-tight truncate">{importResult.nombre}</h3>
+                                <h3 className="font-bold text-stone-900 text-lg leading-tight truncate">{toTitleCase(importResult.nombre || '')}</h3>
                                 <p className="text-stone-500 text-sm mt-1">ID: {importResult.obraId}</p>
                             </div>
                         </div>
@@ -202,9 +243,9 @@ export default function ImportArtModal({ isOpen, onClose, onImportSuccess }: Imp
                     </button>
                 </div>
 
-                {/* Search Bar */}
+                {/* Search Bar with Artist Filter */}
                 <div className="p-6 border-b border-stone-200">
-                    <div className="flex gap-3">
+                    <div className="flex flex-col gap-3">
                         <input
                             type="text"
                             value={busqueda}
@@ -212,15 +253,26 @@ export default function ImportArtModal({ isOpen, onClose, onImportSuccess }: Imp
                             onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
                             placeholder="Ej: La noche estrellada, Mona Lisa..."
                             disabled={isBusy}
-                            className="flex-1 border-2 border-stone-300 rounded-xl px-4 py-3 text-stone-900 font-medium focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                            className="w-full border-2 border-stone-300 rounded-xl px-4 py-3 text-stone-900 font-medium focus:border-blue-500 focus:outline-none disabled:opacity-50"
                         />
-                        <button
-                            onClick={handleBuscar}
-                            disabled={isBusy || !busqueda.trim()}
-                            className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                        >
-                            {loading ? 'Buscando...' : 'Buscar'}
-                        </button>
+                        <input
+                            type="text"
+                            value={artistaFiltro}
+                            onChange={(e) => setArtistaFiltro(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
+                            placeholder="Filtrar por artista (opcional)..."
+                            disabled={isBusy}
+                            className="w-full border-2 border-stone-300 rounded-xl px-4 py-3 text-stone-900 font-medium focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                        />
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleBuscar}
+                                disabled={isBusy || !busqueda.trim()}
+                                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            >
+                                {loading ? 'Buscando...' : 'Buscar'}
+                            </button>
+                        </div>
                     </div>
                 </div>
 

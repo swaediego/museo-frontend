@@ -2,6 +2,16 @@ import Image from 'next/image';
 import { Art } from '@/types/art';
 import Link from 'next/link';
 
+// Helper: capitalizar primera letra de cada palabra
+function toTitleCase(str: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 export default function ArtCard({ art }: { art: Art }) {
     // 1. Protección: Si por alguna razón no llega la obra, no renderizamos nada
     if (!art) return null;
@@ -19,7 +29,7 @@ export default function ArtCard({ art }: { art: Art }) {
             <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
                 <Image
                     src={art.imagenUrl || 'https://via.placeholder.com/400x300?text=undefined'}
-                    alt={art.nombre || 'Obra de arte'}
+                    alt={toTitleCase(art.nombre) || 'Obra de arte'}
                     fill
                     sizes="(max-width: 768px) 100vw, 33vw"
                     className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -33,14 +43,14 @@ export default function ArtCard({ art }: { art: Art }) {
             {/* SECCIÓN DE CONTENIDO */}
             <div className="p-5 flex flex-col flex-grow">
                 <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1">
-                    {art.nombre || 'Sin título'}
+                    {toTitleCase(art.nombre) || 'Sin título'}
                 </h3>
                 <p className="text-sm text-gray-500 mb-4">
                     por <Link
                         href={`/artista/${art.artista.id}`}
                         className="font-medium text-blue-600 hover:underline hover:text-blue-800 transition-colors"
                     >
-                        {art.artista?.nombre || 'Autor Desconocido'}
+                        {toTitleCase(art.artista?.nombre) || 'Autor Desconocido'}
                     </Link>
                 </p>
 

@@ -1,11 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Artist, Genre } from '@/types/art';
 
-export default function NuevaArtistaPage() {
+function NuevaArtistaPageContent() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
@@ -130,5 +130,13 @@ export default function NuevaArtistaPage() {
                 </form>
             </div>
         </div>
+    );
+}
+
+export default function NuevaArtistaPage() {
+    return (
+        <Suspense fallback={<div className="p-8">Cargando...</div>}>
+            <NuevaArtistaPageContent />
+        </Suspense>
     );
 }

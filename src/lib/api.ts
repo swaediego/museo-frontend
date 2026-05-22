@@ -105,12 +105,17 @@ export interface MetSearchResult {
     artista: string;
     imagenUrl: string;
     clasificacion: string;
+    fuente?: string;      // "MET", "Rijksmuseum", "Harvard"
+    fuenteId?: string;    // ID de fuente alternativa
 }
 
 export interface ImportArtRequest {
-    objectId: number;
+    objectId?: number;    // Para MET
     busqueda: string;
     tituloEspanol?: string;
+    artista?: string;      // Para filtrar búsqueda
+    fuente?: string;       // "MET", "Rijksmuseum", "Harvard"
+    fuenteId?: string;     // ID de fuente alternativa
 }
 
 export interface ImportArtResponse {
@@ -125,8 +130,40 @@ export interface ImportArtResponse {
     detallesExtraidos?: Record<string, unknown>;
 }
 
-export const buscarObrasEnMet = (busqueda: string): Promise<MetSearchResult[]> =>
-    api.post('api/arts/import/buscar', { json: { busqueda } }).json<MetSearchResult[]>();
+export interface BuscarObrasResponse {
+    success: boolean;
+    message?: string;
+    resultados: MetSearchResult[];
+    sugerencias?: MetSearchResult[];
+}
+
+export const buscarObrasEnMet = async (busqueda: string, artista?: string): Promise<BuscarObrasResponse> => {
+    try {
+        const response = await api.post('api/arts/import/buscar', { 
+            json: { busqueda, artista } 
+        });
+        
+        const data = await response.json() as BuscarObrasResponse;
+        
+        // Si success=false con mensaje, devolvemos error amigable
+        if (data.success === false && data.message) {
+            return {
+                success: false,
+                message: data.message,
+                resultados: data.sugerencias || [],
+                sugerencias: data.sugerencias || []
+            };
+        }
+        
+        return {
+            success: true,
+            resultados: data.resultados || [],
+            sugerencias: data.sugerencias || []
+        };
+    } catch (err: unknown) {
+        throw new Error('No se pudo conectar con el servidor. Verifica que el backend esté en ejecución.');
+    }
+};
 
 export const importarObraDesdeMet = async (request: ImportArtRequest): Promise<ImportArtResponse> => {
     try {

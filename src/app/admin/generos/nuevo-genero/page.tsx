@@ -1,10 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function NuevoGeneroPage() {
+function NuevoGeneroPageContent() {
     const router = useRouter();
     const id = useSearchParams().get('id');
     const [nombre, setNombre] = useState('');
@@ -35,5 +35,13 @@ export default function NuevoGeneroPage() {
                 </form>
             </div>
         </div>
+    );
+}
+
+export default function NuevoGeneroPage() {
+    return (
+        <Suspense fallback={<div className="p-8">Cargando...</div>}>
+            <NuevoGeneroPageContent />
+        </Suspense>
     );
 }
