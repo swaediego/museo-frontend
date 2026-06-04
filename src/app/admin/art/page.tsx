@@ -1,8 +1,8 @@
 'use client';
+import { HTTPError } from 'ky';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Art } from '@/types/art';
-import { addToSyncQueue } from '@/lib/syncQueue';
 
 export default function AdminArtPage() {
     const [arts, setArts] = useState<Art[]>([]);
@@ -31,11 +31,37 @@ export default function AdminArtPage() {
 
         try {
             await api.delete(`api/arts/${id}`);
-            addToSyncQueue({ type: 'art', id });
             setArts(prev => prev.filter(art => art.id !== id));
             alert("Obra eliminada con éxito.");
         } catch (err) {
             alert("Error al eliminar la obra.");
+            console.error(err);
+        }
+    };
+
+    const handleEditPrice = async (art: Art) => {
+        const input = prompt(`Editar precio de "${art.nombre}"\n\nPrecio actual: $${art.precioBase.toLocaleString()}\n\nIngrese el nuevo precio:`, String(art.precioBase));
+        if (input === null) return; // canceló
+        const nuevoPrecio = Number(input);
+        if (!Number.isFinite(nuevoPrecio) || nuevoPrecio <= 0) {
+            alert("El precio debe ser un número mayor a 0.");
+            return;
+        }
+
+        try {
+            const updated = await api.patch(`api/arts/${art.id}/precio`, { json: { precio: nuevoPrecio } }).json<Art>();
+            setArts(prev => prev.map(a => a.id === art.id ? updated : a));
+            alert(`Precio actualizado a $${updated.precioBase.toLocaleString()}.`);
+        } catch (err) {
+            let msg = "Error al actualizar el precio.";
+            if (err instanceof HTTPError) {
+                try {
+                    msg = await err.response.text();
+                } catch { /* dejar mensaje genérico */ }
+            } else if (err instanceof Error) {
+                msg = err.message;
+            }
+            alert(msg);
             console.error(err);
         }
     };
@@ -70,7 +96,17 @@ return (
                                         {art.estatus.toUpperCase()}
                                     </span>
                                 </td>
-                                <td className="py-4 text-right">
+                                <td className="py-4 text-right space-x-4">
+                                    <button
+                                        onClick={() => handleEditPrice(art)}
+                                        disabled={art.estatus !== 'Disponible'}
+                                        className={`font-bold ${art.estatus === 'Disponible'
+                                            ? 'text-amber-600 hover:text-amber-800 cursor-pointer'
+                                            : 'text-stone-300 cursor-not-allowed'
+                                            }`}
+                                    >
+                                        Editar precio
+                                    </button>
                                     <button
                                         onClick={() => handleDelete(art.id)}
                                         disabled={art.estatus !== 'Disponible'}

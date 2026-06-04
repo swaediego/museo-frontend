@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getMongoFilter } from '@/lib/api';
 import { MongoArtDocument } from '@/types/art';
@@ -84,9 +84,13 @@ export default function CatalogPage() {
   }) ?? [];
 
   // Admin check for import button
-  const adminToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const adminUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user') || '{}') : {};
-  const isAdminUser = adminToken && (adminUser.rol === 'PRINCIPAL' || adminUser.rol === 'ADMIN');
+  const [isAdminUser, setIsAdminUser] = useState(false);
+
+  useEffect(() => {
+    const adminUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const hasAdminRole = adminUser?.tipo === 'ADMIN' || adminUser?.user?.rol === 'PRINCIPAL' || adminUser?.user?.rol === 'ADMIN' || adminUser?.rol === 'PRINCIPAL' || adminUser?.rol === 'ADMIN';
+    setIsAdminUser(!!hasAdminRole);
+  }, []);
 
   return (
     <div className="min-h-screen bg-stone-50 p-8">
