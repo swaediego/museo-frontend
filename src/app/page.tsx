@@ -233,7 +233,12 @@ export default function CatalogPage() {
           ))}
         </div>
 
-        {filteredArts?.length === 0 && (
+        {isError && (
+          <p className="text-center text-red-500 py-20">
+            Error al cargar el catálogo: {(error as Error)?.message || 'Error de conexión al servidor'}
+          </p>
+        )}
+        {!isError && filteredArts?.length === 0 && (
           <p className="text-center text-stone-400 py-20">No se encontraron obras con esos criterios.</p>
         )}
       </div>

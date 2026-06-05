@@ -114,6 +114,7 @@ export interface Buyer extends User {
 }
 
 export interface AuthResponse {
+    token: string;
     user: User;
     tipo: 'ADMIN' | 'BUYER';
 }

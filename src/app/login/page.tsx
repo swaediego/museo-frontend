@@ -18,6 +18,7 @@ export default function LoginPage() {
         onSuccess: (data) => {
             console.log("Datos recibidos del backend:", data);
             // Guardamos el objeto AuthResponse que devuelve tu backend
+            localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data));
 
             // Usamos data.user.nombre para el saludo
