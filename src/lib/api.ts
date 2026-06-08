@@ -16,15 +16,15 @@ export const api = ky.create({
     hooks: {
         beforeRequest: [
             request => {
-                // Útil para debug
-                console.log(`Enviando petición a: ${request.url}`);
-            }
-        ],
-        afterResponse: [
-            async (_request, _options, response) => {
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error('Error de la API:', errorData);
+                const token = localStorage.getItem('token')
+                    || (() => {
+                        try {
+                            const u = localStorage.getItem('user');
+                            return u ? JSON.parse(u).token : null;
+                        } catch { return null; }
+                    })();
+                if (token) {
+                    request.headers.set('Authorization', `Bearer ${token}`);
                 }
             }
         ]

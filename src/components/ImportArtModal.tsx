@@ -6,12 +6,13 @@ import { buscarObrasEnMet, importarObraDesdeMet, MetSearchResult, ImportArtReque
 // Verificar si el usuario es admin
 function isAdmin(): boolean {
   if (typeof window === 'undefined') return false;
-  const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
-  if (!token || !userStr) return false;
+  if (!userStr) return false;
   try {
-    const user = JSON.parse(userStr);
-    return user.rol === 'PRINCIPAL' || user.rol === 'ADMIN';
+    const data = JSON.parse(userStr);
+    const user = data.user || data;
+    const tipo = data.tipo;
+    return tipo === 'ADMIN' || user.rol === 'PRINCIPAL' || user.rol === 'ADMIN';
   } catch {
     return false;
   }
