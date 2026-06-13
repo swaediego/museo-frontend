@@ -47,10 +47,12 @@ export interface MongoArtDocument {
     estatus: 'Disponible' | 'Reservada' | 'Vendida';
     genero: string;
     imagenUrl: string;
-    fechaCreacion: number;
+    fechaCreacion?: number;
+    artistaNombre: string;
+    tipo: string;
     artista: MongoEmbeddedArtist;
     /** Campos variables según el género de la obra */
-    detallesEspecificos: Record<string, unknown>;
+    detallesEspecificos?: Record<string, unknown>;
 }
 
 /** Parámetros para el endpoint POST /api/catalog/filter (Aggregation Framework) */

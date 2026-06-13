@@ -226,6 +226,29 @@ export default function CatalogPage() {
           </button>
         </div>
 
+        {/* ── CONTADOR DE OBRAS ── */}
+        <div className="mb-6 flex items-center gap-3 bg-white border-2 border-stone-800 rounded-2xl px-6 py-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-black text-stone-900">{filteredArts?.length ?? 0}</span>
+            <span className="text-sm font-bold text-stone-500">
+              {filteredArts?.length === 1 ? 'obra encontrada' : 'obras encontradas'}
+            </span>
+          </div>
+          {search || genre || estatus || precioMin || precioMax || sortBy ? (
+            <div className="flex items-center gap-2 border-l-2 border-stone-200 pl-3">
+              <span className="text-sm text-stone-400">
+                de {arts?.length ?? 0} obras en el catálogo
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 border-l-2 border-stone-200 pl-3">
+              <span className="text-sm font-bold text-emerald-700">
+                Catálogo completo · MongoDB
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* ── GRILLA DE RESULTADOS ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredArts?.map(art => (
@@ -297,16 +320,9 @@ function MongoArtCard({
         </h2>
         <div className="text-sm text-stone-500 mb-3 font-light">
           por{' '}
-          <Link
-            href={`/artista/${art.artista?.idArtistaRelacional}`}
-            onClick={(e) => e.stopPropagation()}
-            className="font-medium text-stone-700 hover:text-stone-900 underline underline-offset-4 decoration-stone-400 decoration-1"
-          >
-            {toTitleCase(art.artista?.nombre)}
-          </Link>
-          {art.artista?.nacionalidad && (
-            <span className="text-stone-400"> · {art.artista.nacionalidad}</span>
-          )}
+          <span className="font-medium text-stone-700">
+            {toTitleCase(art.artistaNombre)}
+          </span>
         </div>
 
         {/* Polimorfismo: muestra hasta 2 detallesEspecificos como pills */}

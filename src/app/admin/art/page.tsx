@@ -4,9 +4,16 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Art } from '@/types/art';
 
+interface DBCounts {
+    postgresql: number;
+    mongodb: number;
+    cassandra: number;
+}
+
 export default function AdminArtPage() {
     const [arts, setArts] = useState<Art[]>([]);
     const [loading, setLoading] = useState(true);
+    const [dbCounts, setDbCounts] = useState<DBCounts>({ postgresql: 0, mongodb: 0, cassandra: 0 });
 
     const fetchArts = async () => {
         try {
@@ -18,6 +25,18 @@ export default function AdminArtPage() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchArts();
+        // Cargar contadores de las 3 bases en paralelo
+        Promise.all([
+            api.get('api/arts/all').json<Art[]>().then(r => r.length).catch(() => 0),
+            api.get('api/catalog').json<any[]>().then(r => r.length).catch(() => 0),
+            api.get('api/history/stats/count').json<number>().catch(() => 0),
+        ]).then(([pg, mongo, cass]) => {
+            setDbCounts({ postgresql: pg, mongodb: mongo, cassandra: cass });
+        });
+    }, []);
 
     const [editingPriceId, setEditingPriceId] = useState<number | null>(null);
     const [newPriceValue, setNewPriceValue] = useState<string>('');
@@ -35,6 +54,14 @@ export default function AdminArtPage() {
 
     useEffect(() => {
         fetchArts();
+        // Cargar contadores de las 3 bases en paralelo
+        Promise.all([
+            api.get('api/arts/all').json<Art[]>().then(r => r.length).catch(() => 0),
+            api.get('api/catalog').json<any[]>().then(r => r.length).catch(() => 0),
+            api.get('api/history/stats/count').json<number>().catch(() => 0),
+        ]).then(([pg, mongo, cass]) => {
+            setDbCounts({ postgresql: pg, mongodb: mongo, cassandra: cass });
+        });
     }, []);
 
     if (loading) return <div className="p-32 text-center">Cargando catálogo...</div>;
@@ -104,6 +131,25 @@ return (
             <div className="max-w-6xl mx-auto bg-white shadow-sm border border-stone-200 rounded-3xl p-10">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-serif font-bold text-slate-950">Gestión de Obras</h1>
+                </div>
+
+                {/* Panel de estadísticas sincronizadas */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div className="bg-slate-900 text-white rounded-2xl p-5 text-center">
+                        <p className="text-xs uppercase tracking-widest text-slate-400 mb-1">PostgreSQL</p>
+                        <p className="text-3xl font-bold">{dbCounts.postgresql}</p>
+                        <p className="text-xs text-slate-400 mt-1">obras en base relacional</p>
+                    </div>
+                    <div className="bg-emerald-700 text-white rounded-2xl p-5 text-center">
+                        <p className="text-xs uppercase tracking-widest text-emerald-200 mb-1">MongoDB</p>
+                        <p className="text-3xl font-bold">{dbCounts.mongodb}</p>
+                        <p className="text-xs text-emerald-200 mt-1">documentos en catálogo</p>
+                    </div>
+                    <div className="bg-amber-600 text-white rounded-2xl p-5 text-center">
+                        <p className="text-xs uppercase tracking-widest text-amber-200 mb-1">Cassandra</p>
+                        <p className="text-3xl font-bold">{dbCounts.cassandra}</p>
+                        <p className="text-xs text-amber-200 mt-1">cambios de precio registrados</p>
+                    </div>
                 </div>
 
                 <table className="w-full text-left">
