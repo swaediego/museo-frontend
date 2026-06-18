@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { formatCardMask } from '@/utils/formatters';
 
@@ -14,27 +14,38 @@ export default function BuyerInfoTooltip({ artIdRelacional, estatus }: BuyerInfo
   const [buyer, setBuyer] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleMouseEnter = async () => {
-    setShow(true);
-    // Solo cargar una vez
-    if (loading || buyer !== null || estatus === 'Disponible') return;
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
 
-    setLoading(true);
-    setError(null);
-    try {
-      console.log(`[BuyerTooltip] Fetching api/arts/${artIdRelacional}`);
-      const art = await api.get(`api/arts/${artIdRelacional}`).json<any>();
-      console.log(`[BuyerTooltip] Response:`, art);
-      console.log(`[BuyerTooltip] compradorReserva:`, art?.compradorReserva);
-      setBuyer(art?.compradorReserva || null);
-    } catch (err: any) {
-      console.error(`[BuyerTooltip] Error:`, err);
-      setError(err.message);
-      setBuyer(null);
-    } finally {
-      setLoading(false);
+  const handleMouseEnter = () => {
+    // No hace fetch si es Disponible o ya cargado
+    if (buyer !== null || estatus === 'Disponible') {
+      setShow(true);
+      return;
     }
+    debounceRef.current = setTimeout(async () => {
+      setShow(true);
+      if (loading) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const art = await api.get(`api/arts/${artIdRelacional}`).json<any>();
+        setBuyer(art?.compradorReserva || null);
+      } catch (err: any) {
+        setError(err.message);
+        setBuyer(null);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+  };
+
+  const handleMouseLeave = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setShow(false);
   };
 
   if (estatus === 'Disponible') {
@@ -45,7 +56,7 @@ export default function BuyerInfoTooltip({ artIdRelacional, estatus }: BuyerInfo
     <span
       className="relative inline-block cursor-help"
       onMouseEnter={handleMouseEnter}
-      onMouseLeave={() => setShow(false)}
+      onMouseLeave={handleMouseLeave}
     >
       {loading ? '⏳' : estatus}
       {show && error && (

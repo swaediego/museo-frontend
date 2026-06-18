@@ -152,6 +152,12 @@ export interface Review {
     fecha: string;        // ISO datetime
 }
 
+/** Respuesta del endpoint de reseñas con info de desactivados */
+export interface ReviewsResponse {
+    reviews: Review[];
+    deactivatedBuyerIds: number[];
+}
+
 /** Estadísticas de reseñas de una obra */
 export interface ReviewStats {
     promedio: number;

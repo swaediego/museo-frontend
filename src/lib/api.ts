@@ -1,5 +1,5 @@
 import ky from 'ky';
-import { Art, Invoice, MongoArtDocument, MongoFilterParams, Review, ReviewStats } from '@/types/art';
+import { Art, Invoice, MongoArtDocument, MongoFilterParams, Review, ReviewsResponse, ReviewStats } from '@/types/art';
 
 export const api = ky.create({
 
@@ -254,9 +254,9 @@ export const aiSearch = async (query: string): Promise<AISearchResponse> => {
 // SPRINT 4 — RESEÑAS DE OBRAS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** GET /api/arts/{id}/reviews — todas las reseñas de una obra */
-export const getArtReviews = (id: number): Promise<Review[]> =>
-    api.get(`api/arts/${id}/reviews`).json<Review[]>();
+/** GET /api/arts/{id}/reviews — reseñas de una obra (con info de desactivados) */
+export const getArtReviews = (id: number): Promise<ReviewsResponse> =>
+    api.get(`api/arts/${id}/reviews`).json<ReviewsResponse>();
 
 /** GET /api/arts/{id}/reviews/stats — promedio + total */
 export const getArtReviewStats = (id: number): Promise<ReviewStats> =>

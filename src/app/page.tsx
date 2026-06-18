@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getMongoFilter } from '@/lib/api';
 import { MongoArtDocument } from '@/types/art';
@@ -75,13 +75,15 @@ export default function CatalogPage() {
     staleTime: 30 * 1000,
   });
 
-// 3. Filtro local por nombre u artista (búsqueda de texto)
-  const filteredArts = arts?.filter(art => {
-    const term = search.toLowerCase();
-    if (!term) return true;
-    if (searchType === 'nombre') return art.nombre?.toLowerCase().includes(term);
-    return art.artista?.nombre?.toLowerCase().includes(term);
-  }) ?? [];
+// 3. Filtro local por nombre u artista (búsqueda de texto) — memoizado
+  const filteredArts = useMemo(() => {
+    return arts?.filter(art => {
+      const term = search.toLowerCase();
+      if (!term) return true;
+      if (searchType === 'nombre') return art.nombre?.toLowerCase().includes(term);
+      return art.artista?.nombre?.toLowerCase().includes(term);
+    }) ?? [];
+  }, [arts, search, searchType]);
 
   // Admin check for import button
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -251,8 +253,8 @@ export default function CatalogPage() {
 
         {/* ── GRILLA DE RESULTADOS ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredArts?.map(art => (
-            <MongoArtCard key={art.id} art={art} badgeColor={badgeColor} router={router} />
+          {filteredArts?.map((art, i) => (
+            <MongoArtCard key={art.id} art={art} badgeColor={badgeColor} router={router} priority={i < 6} />
           ))}
         </div>
 
@@ -280,14 +282,18 @@ export default function CatalogPage() {
 // Navega a /art/[idRelacional] → el detalle carga datos de PostgreSQL para
 // la lógica de compra/reserva, pero puede enriquecerse con detallesEspecificos
 // ─────────────────────────────────────────────────────────────────────────────
+const PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23d6d3d1" width="400" height="300"/%3E%3C/svg%3E';
+
 function MongoArtCard({
   art,
   badgeColor,
   router,
+  priority = false,
 }: {
   art: MongoArtDocument;
   badgeColor: (s: string) => string;
   router: ReturnType<typeof useRouter>;
+  priority?: boolean;
 }) {
   return (
     <div
@@ -297,9 +303,10 @@ function MongoArtCard({
       {/* Imagen */}
       <div className="relative h-56 bg-stone-100 overflow-hidden">
         <Image
-          src={art.imagenUrl || 'https://via.placeholder.com/400x300?text=undefined'}
-          alt={toTitleCase(art.nombre) || 'undefined'}
+          src={art.imagenUrl || PLACEHOLDER}
+          alt={toTitleCase(art.nombre) || 'Obra de arte'}
           fill
+          priority={priority}
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           className="object-cover group-hover:scale-105 transition-transform duration-500"
         />

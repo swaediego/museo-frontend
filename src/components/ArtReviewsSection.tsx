@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { StarRating } from './StarRating';
@@ -9,9 +9,8 @@ import {
     createArtReview,
     deleteArtReviewAdmin,
     deleteMyArtReview,
-    desactivarBuyer,
 } from '@/lib/api';
-import { Review, ReviewStats, Buyer } from '@/types/art';
+import { Review, ReviewStats, ReviewsResponse, Buyer } from '@/types/art';
 
 /**
  * Sección de reseñas — debajo de los botones de acción.
@@ -21,8 +20,7 @@ import { Review, ReviewStats, Buyer } from '@/types/art';
  *   - sin login     → bloque con links a /register y /login
  *   - buyer logueado → form para calificar (no requiere membresía)
  *   - admin logueado → ve todas las reseñas (incluyendo autores dados de baja, en gris
- *                      con badge) y tiene botones "Eliminar comentario" y
- *                      "Dar de baja al usuario" por reseña
+ *                      con badge) y tiene botón "Eliminar comentario"
  */
 interface ArtReviewsSectionProps {
     artId: number;
@@ -38,10 +36,8 @@ export function ArtReviewsSection({ artId, user }: ArtReviewsSectionProps) {
     const [hoverRating, setHoverRating] = useState(0);
     const [comentario, setComentario] = useState('');
 
-    // IDs de compradores que el admin dio de baja en esta sesión.
-    // Esto es client-side: cuando un comprador está en este set, su reseña
-    // se oculta para compradores y no-logueados, pero el admin la sigue viendo
-    // con el nombre en gris + badge "(Desactivado)".
+    // IDs de compradores desactivados, provistos por el backend.
+    // El admin los ve en gris con badge; para no-admin el backend ya los filtró.
     const [deactivatedBuyers, setDeactivatedBuyers] = useState<Set<number>>(new Set());
 
     // MODIFICADO por Diego Torrelles ( bd2-proyecto ) — modo edición de la propia reseña.
@@ -51,26 +47,31 @@ export function ArtReviewsSection({ artId, user }: ArtReviewsSectionProps) {
 
     // Modal de confirmación: ¿Eliminar comentario? (admin o dueño)
     const [confirmDelete, setConfirmDelete] = useState<{ reviewId: string; buyerId: number; buyerNombre: string; scope: 'admin' | 'self' } | null>(null);
-    // Modal de confirmación: ¿Dar de baja al usuario?
-    const [confirmDeactivate, setConfirmDeactivate] = useState<{ buyerId: number; buyerNombre: string; active: boolean } | null>(null);
 
-    const { data: reviews = [], isLoading } = useQuery<Review[]>({
+
+    const { data: reviewsResponse, isLoading } = useQuery<ReviewsResponse>({
         queryKey: ['art-reviews', artId],
         queryFn: () => getArtReviews(artId),
     });
+
+    const reviews = reviewsResponse?.reviews ?? [];
+
+    // Sincronizar desactivados desde el backend (persiste entre recargas)
+    useEffect(() => {
+        if (reviewsResponse?.deactivatedBuyerIds?.length) {
+            setDeactivatedBuyers(new Set(reviewsResponse.deactivatedBuyerIds));
+        }
+    }, [reviewsResponse]);
 
     const { data: stats } = useQuery<ReviewStats>({
         queryKey: ['art-reviews-stats', artId],
         queryFn: () => getArtReviewStats(artId),
     });
 
-    // Calcular promedio y total en función de las reseñas visibles (excluye desactivados
-    // para compradores / no-logueados, pero el admin ve todo).
+    // El backend ya filtró según el rol; solo descartamos reseñas con rating 0 (eliminadas).
     const visibleReviews = useMemo(() => {
-        const active = reviews.filter(r => r.rating > 0);
-        if (isAdmin(user)) return active;
-        return active.filter(r => !deactivatedBuyers.has(r.buyerId));
-    }, [reviews, deactivatedBuyers, user]);
+        return reviews.filter(r => r.rating > 0);
+    }, [reviews]);
 
     const visibleStats = useMemo(() => {
         if (visibleReviews.length === 0) return { promedio: 0, total: 0 };
@@ -119,31 +120,6 @@ export function ArtReviewsSection({ artId, user }: ArtReviewsSectionProps) {
         onError: async (err: any) => {
             const msg = await err.response?.text().catch(() => 'Error');
             alert(msg || 'No se pudo eliminar la reseña');
-        }
-    });
-
-    const deactivateMutation = useMutation({
-        mutationFn: ({ buyerId, active }: { buyerId: number; active: boolean }) =>
-            desactivarBuyer(buyerId).then(() => ({ buyerId, active })),
-        onSuccess: ({ buyerId, active }) => {
-            setDeactivatedBuyers(prev => {
-                const next = new Set(prev);
-                if (active) {
-                    // Reactivando: el endpoint es toggle, así que se re-activa el buyer.
-                    // En la UI del admin el nombre vuelve a su color normal.
-                    next.delete(buyerId);
-                } else {
-                    next.add(buyerId);
-                }
-                return next;
-            });
-            // Refrescar reseñas por si el backend quiere filtrar (no es el caso acá,
-            // pero el filter client-side ya está hecho).
-            queryClient.invalidateQueries({ queryKey: ['art-reviews', artId] });
-        },
-        onError: async (err: any) => {
-            const msg = await err.response?.text().catch(() => 'Error');
-            alert(msg || 'No se pudo cambiar el estado del usuario');
         }
     });
 
@@ -232,20 +208,7 @@ export function ArtReviewsSection({ artId, user }: ArtReviewsSectionProps) {
                                         >
                                             Eliminar comentario
                                         </button>
-                                        <button
-                                            onClick={() => setConfirmDeactivate({
-                                                buyerId: review.buyerId,
-                                                buyerNombre: review.buyerNombre,
-                                                active: isDeactivated,
-                                            })}
-                                            className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-colors ${
-                                                isDeactivated
-                                                    ? 'text-emerald-700 border-emerald-200 hover:bg-emerald-50'
-                                                    : 'text-stone-700 border-stone-300 hover:bg-stone-100'
-                                            }`}
-                                        >
-                                            {isDeactivated ? 'Reactivar usuario' : 'Dar de baja al usuario'}
-                                        </button>
+
                                     </div>
                                 )}
 
@@ -455,54 +418,6 @@ export function ArtReviewsSection({ artId, user }: ArtReviewsSectionProps) {
                 </div>
             )}
 
-            {/* Modal: ¿Dar de baja / Reactivar al usuario? */}
-            {confirmDeactivate && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-stone-100">
-                        <h3 className="text-xl font-serif font-bold text-slate-900 mb-2">
-                            {confirmDeactivate.active
-                                ? '¿Reactivar al usuario?'
-                                : '¿Dar de baja al usuario?'}
-                        </h3>
-                        <p className="text-sm text-stone-500 mb-2">
-                            Usuario: <span className="font-semibold text-slate-700">{confirmDeactivate.buyerNombre}</span>
-                        </p>
-                        {!confirmDeactivate.active && (
-                            <p className="text-xs text-stone-500 mb-6">
-                                Al darlo de baja, sus reseñas dejarán de verse para otros compradores y
-                                visitantes, y no podrá iniciar sesión. Si lo reactivás, sus reseñas vuelven
-                                a mostrarse.
-                            </p>
-                        )}
-                        {confirmDeactivate.active && (
-                            <p className="text-xs text-stone-500 mb-6">
-                                Al reactivarlo, sus reseñas volverán a mostrarse para todos los visitantes.
-                            </p>
-                        )}
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setConfirmDeactivate(null)}
-                                className="flex-1 py-3 border-2 border-stone-200 text-stone-600 rounded-xl font-bold hover:border-stone-800 hover:text-stone-900 transition-all text-xs uppercase"
-                            >
-                                No
-                            </button>
-                            <button
-                                onClick={() => {
-                                    deactivateMutation.mutate({
-                                        buyerId: confirmDeactivate.buyerId,
-                                        active: confirmDeactivate.active,
-                                    });
-                                    setConfirmDeactivate(null);
-                                }}
-                                disabled={deactivateMutation.isPending}
-                                className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-xs uppercase shadow-md active:scale-95 disabled:bg-stone-400"
-                            >
-                                {deactivateMutation.isPending ? 'Procesando…' : 'Sí'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
