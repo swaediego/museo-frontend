@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getMongoFilter } from '@/lib/api';
 import { MongoArtDocument } from '@/types/art';
@@ -75,13 +75,15 @@ export default function CatalogPage() {
     staleTime: 30 * 1000,
   });
 
-// 3. Filtro local por nombre u artista (búsqueda de texto)
-  const filteredArts = arts?.filter(art => {
-    const term = search.toLowerCase();
-    if (!term) return true;
-    if (searchType === 'nombre') return art.nombre?.toLowerCase().includes(term);
-    return art.artista?.nombre?.toLowerCase().includes(term);
-  }) ?? [];
+// 3. Filtro local por nombre u artista (búsqueda de texto) — memoizado
+  const filteredArts = useMemo(() => {
+    return arts?.filter(art => {
+      const term = search.toLowerCase();
+      if (!term) return true;
+      if (searchType === 'nombre') return art.nombre?.toLowerCase().includes(term);
+      return art.artista?.nombre?.toLowerCase().includes(term);
+    }) ?? [];
+  }, [arts, search, searchType]);
 
   // Admin check for import button
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -226,10 +228,33 @@ export default function CatalogPage() {
           </button>
         </div>
 
+        {/* ── CONTADOR DE OBRAS ── */}
+        <div className="mb-6 flex items-center gap-3 bg-white border-2 border-stone-800 rounded-2xl px-6 py-4 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-black text-stone-900">{filteredArts?.length ?? 0}</span>
+            <span className="text-sm font-bold text-stone-500">
+              {filteredArts?.length === 1 ? 'obra encontrada' : 'obras encontradas'}
+            </span>
+          </div>
+          {search || genre || estatus || precioMin || precioMax || sortBy ? (
+            <div className="flex items-center gap-2 border-l-2 border-stone-200 pl-3">
+              <span className="text-sm text-stone-400">
+                de {arts?.length ?? 0} obras en el catálogo
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 border-l-2 border-stone-200 pl-3">
+              <span className="text-sm font-bold text-emerald-700">
+                Catálogo completo · MongoDB
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* ── GRILLA DE RESULTADOS ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredArts?.map(art => (
-            <MongoArtCard key={art.id} art={art} badgeColor={badgeColor} router={router} />
+          {filteredArts?.map((art, i) => (
+            <MongoArtCard key={art.id} art={art} badgeColor={badgeColor} router={router} priority={i < 6} />
           ))}
         </div>
 
@@ -257,14 +282,18 @@ export default function CatalogPage() {
 // Navega a /art/[idRelacional] → el detalle carga datos de PostgreSQL para
 // la lógica de compra/reserva, pero puede enriquecerse con detallesEspecificos
 // ─────────────────────────────────────────────────────────────────────────────
+const PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23d6d3d1" width="400" height="300"/%3E%3C/svg%3E';
+
 function MongoArtCard({
   art,
   badgeColor,
   router,
+  priority = false,
 }: {
   art: MongoArtDocument;
   badgeColor: (s: string) => string;
   router: ReturnType<typeof useRouter>;
+  priority?: boolean;
 }) {
   return (
     <div
@@ -274,9 +303,11 @@ function MongoArtCard({
       {/* Imagen */}
       <div className="relative h-56 bg-stone-100 overflow-hidden">
         <Image
-          src={art.imagenUrl || 'https://via.placeholder.com/400x300?text=undefined'}
-          alt={toTitleCase(art.nombre) || 'undefined'}
+          src={art.imagenUrl || PLACEHOLDER}
+          alt={toTitleCase(art.nombre) || 'Obra de arte'}
           fill
+          priority={priority}
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           className="object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <span className={`absolute top-3 right-3 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-full ${badgeColor(art.estatus)}`}>
@@ -297,16 +328,9 @@ function MongoArtCard({
         </h2>
         <div className="text-sm text-stone-500 mb-3 font-light">
           por{' '}
-          <Link
-            href={`/artista/${art.artista?.idArtistaRelacional}`}
-            onClick={(e) => e.stopPropagation()}
-            className="font-medium text-stone-700 hover:text-stone-900 underline underline-offset-4 decoration-stone-400 decoration-1"
-          >
-            {toTitleCase(art.artista?.nombre)}
-          </Link>
-          {art.artista?.nacionalidad && (
-            <span className="text-stone-400"> · {art.artista.nacionalidad}</span>
-          )}
+          <span className="font-medium text-stone-700">
+            {toTitleCase(art.artistaNombre)}
+          </span>
         </div>
 
         {/* Polimorfismo: muestra hasta 2 detallesEspecificos como pills */}

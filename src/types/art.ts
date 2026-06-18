@@ -47,10 +47,13 @@ export interface MongoArtDocument {
     estatus: 'Disponible' | 'Reservada' | 'Vendida';
     genero: string;
     imagenUrl: string;
-    fechaCreacion: number;
+    fechaCreacion?: number;
+    artistaNombre: string;
+    tipo: string;
     artista: MongoEmbeddedArtist;
+    nota?: string;
     /** Campos variables según el género de la obra */
-    detallesEspecificos: Record<string, unknown>;
+    detallesEspecificos?: Record<string, unknown>;
 }
 
 /** Parámetros para el endpoint POST /api/catalog/filter (Aggregation Framework) */
@@ -132,4 +135,31 @@ export interface Invoice {
     porcentajeGanancia: number;
     subtotal: number;
     codigoSeguridad?: string; // Opcional, podría no estar en la lista general
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPRINT 4 — RESEÑAS DE OBRAS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Reseña almacenada en MongoDB (colección `reviews`) */
+export interface Review {
+    id: string;
+    idRelacional: number;
+    buyerId: number;
+    buyerNombre: string;
+    rating: number;       // 1–5
+    comentario?: string;
+    fecha: string;        // ISO datetime
+}
+
+/** Respuesta del endpoint de reseñas con info de desactivados */
+export interface ReviewsResponse {
+    reviews: Review[];
+    deactivatedBuyerIds: number[];
+}
+
+/** Estadísticas de reseñas de una obra */
+export interface ReviewStats {
+    promedio: number;
+    total: number;
 }

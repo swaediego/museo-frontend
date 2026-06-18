@@ -27,8 +27,17 @@ export default function LoginPage() {
             router.push('/');
             router.refresh();
         },
-        onError: (error: any) => {
-            alert('Usuario o contraseña incorrectos');
+        onError: async (error: any) => {
+            if (error?.response?.status === 403) {
+                try {
+                    const body = await error.response.json();
+                    alert(body.message || 'Tu cuenta ha sido desactivada. Por favor, contacta al soporte (admin).');
+                } catch {
+                    alert('Tu cuenta ha sido desactivada. Por favor, contacta al soporte (admin).');
+                }
+            } else {
+                alert('Usuario o contraseña incorrectos');
+            }
         }
     });
 

@@ -166,9 +166,13 @@ export default function RegisterPage() {
                         <input
                             required
                             type="text"
+                            value={formData.datosTarjetaMask}
                             className="w-full px-4 py-3 rounded-xl border border-stone-200 focus:ring-2 text-black focus:ring-slate-900 outline-none transition-all"
-                            placeholder="**** **** **** 1234"
-                            onChange={(e) => setFormData({ ...formData, datosTarjetaMask: e.target.value })}
+                            placeholder="XXXX-XXXX-XXXX-1234"
+                            onChange={(e) => {
+                                const digits = e.target.value.replace(/\D/g, '').slice(-4);
+                                setFormData({ ...formData, datosTarjetaMask: digits ? `XXXX-XXXX-XXXX-${digits}` : '' });
+                            }}
                         />
                     </div>
 
