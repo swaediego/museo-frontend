@@ -1,8 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { User } from '@/types/art';
+import { User, Buyer } from '@/types/art';
 import { api } from '@/lib/api';
 import { useMutation } from '@tanstack/react-query';
+import RecommendationSection from '@/components/RecommendationSection';
+import { formatCardMask } from '@/utils/formatters';
 
 export default function ProfilePage() {
     const [user, setUser] = useState<User | null>(null);
@@ -88,14 +90,20 @@ export default function ProfilePage() {
 
 
     //Helper para reducir cantidad de codigo en el return de inputs
-    const renderInput = (label: string, field: string, type: string = "text") => (
+    const renderInput = (label: string, field: string, type: string = "text", transform?: (val: string) => string) => (
         <div>
             <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">{label}</label>
             <input
                 type={type}
                 disabled={!isEditing}
-                value={formData[field] || ''}
-                onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
+                // MODIFICADO por Diego Torrelles ( bd2-proyecto ) — aplicar transform al display
+                // tambien, asi si la DB tiene "3456" sin formato, al renderizar se ve
+                // "XXXX-XXXX-XXXX-3456".
+                value={transform ? transform(formData[field] || '') : (formData[field] || '')}
+                onChange={(e) => {
+                    const raw = e.target.value;
+                    setFormData({ ...formData, [field]: transform ? transform(raw) : raw });
+                }}
                 className="w-full p-3 bg-white rounded-xl border border-stone-300 text-slate-950 font-medium focus:ring-2 focus:ring-amber-600 outline-none transition-all disabled:bg-stone-50 disabled:border-stone-200"
             />
         </div>
@@ -164,7 +172,7 @@ export default function ProfilePage() {
                         <>
                             {renderInput("Dirección de Envío", "direccionEnvio")}
                             <div className="grid grid-cols-2 gap-4">
-                                {renderInput("Número de Tarjeta (últimos 4 dígitos)", "datosTarjetaMask")}
+                                {renderInput("Número de Tarjeta (últimos 4 dígitos)", "datosTarjetaMask", "text", formatCardMask)}
                                 {/* AQUÍ USAMOS EL NUEVO COMPONENTE QUE ES SOLO DE LECTURA */}
                                 {renderReadOnly("Código de Seguridad", "codigoSeguridad")}
                             </div>
@@ -250,6 +258,10 @@ export default function ProfilePage() {
                                 </div>
                             )}
                         </div>
+                    )}
+                    {/* Perfil del comprador — sección de recomendaciones de Neo4j (solo miembros premium) */}
+                    {!isAdmin && user && 'membresiaPaga' in user && (user as Buyer).membresiaPaga && (
+                        <RecommendationSection buyerId={user.id} />
                     )}
                 </div>
             </div>

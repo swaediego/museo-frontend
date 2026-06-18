@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { formatCardMask } from '@/utils/formatters';
 
 interface BuyerInfoTooltipProps {
   artIdRelacional: number;
@@ -59,7 +60,8 @@ export default function BuyerInfoTooltip({ artIdRelacional, estatus }: BuyerInfo
           <span className="block font-bold text-stone-700 mb-1">👤 {buyer.nombre} {buyer.apellido}</span>
           <span className="block text-stone-500">📧 {buyer.email}</span>
           <span className="block text-stone-500">📱 {buyer.telefono}</span>
-          <span className="block text-stone-500">💳 {buyer.datosTarjetaMask}</span>
+          {/* MODIFICADO por Diego Torrelles ( bd2-proyecto ) — normalizar formato */}
+          <span className="block text-stone-500">💳 {formatCardMask(buyer.datosTarjetaMask)}</span>
         </span>
       )}
       {show && !loading && !buyer && !error && (

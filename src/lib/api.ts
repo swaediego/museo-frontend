@@ -1,5 +1,5 @@
 import ky from 'ky';
-import { Art, Invoice, MongoArtDocument, MongoFilterParams } from '@/types/art';
+import { Art, Invoice, MongoArtDocument, MongoFilterParams, Review, ReviewStats } from '@/types/art';
 
 export const api = ky.create({
 
@@ -189,4 +189,93 @@ export const importarObraDesdeMet = async (request: ImportArtRequest): Promise<I
 
 /** Migrar todas las obras de PostgreSQL a MongoDB */
 export const migrateAllToMongo = (): Promise<{ message: string }> =>
-    api.post('api/migration/migrate-all').json<{ message: string }>();
+    api.post('api/migration/migrate-all').json<{ message: string }>();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NEO4J RECOMMENDATIONS API — Sprint 3: Redes de Conocimiento
+// Devuelve obras recomendadas basadas en los géneros que el comprador
+// ya adquirió (recorrido del grafo en tiempo real).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RecommendationDTO {
+    idRelacional: number;
+    nombre: string;
+    precio: number;
+    estatus: string;
+    imagenUrl: string;
+    genero: string;
+    artista: string;
+}
+
+/** GET /api/recommendations/{buyerId} */
+export const getRecommendations = (buyerId: number): Promise<RecommendationDTO[]> =>
+    api.get(`api/recommendations/${buyerId}`).json<RecommendationDTO[]>();
+
+/** GET /api/recommendations/{buyerId}/genres */
+export const getTopGenres = (buyerId: number): Promise<[string, number][]> =>
+    api.get(`api/recommendations/${buyerId}/genres`).json<[string, number][]>();
+
+/** GET /api/recommendations/{buyerId}/artists */
+export const getFavoriteArtists = (buyerId: number): Promise<[string, number][]> =>
+    api.get(`api/recommendations/${buyerId}/artists`).json<[string, number][]>();
+
+/** GET /api/recommendations/{buyerId}/summary */
+export const getRecommendationSummary = (buyerId: number): Promise<{
+    recomendaciones: RecommendationDTO[];
+    topGeneros: [string, number][];
+    artistasFavoritos: [string, number][];
+}> =>
+    api.get(`api/recommendations/${buyerId}/summary`).json();
+
+// Finalizar compra — Dispara crearFactura (reserva → venta + Neo4j + Cassandra)
+export const finalizarCompra = (obraId: number, compradorId: number, securityCode: string): Promise<Invoice> =>
+    api.post(`api/invoices/buy/${obraId}/${compradorId}?securityCode=${encodeURIComponent(securityCode)}`).json();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPRINT 3 — RETO DE INNOVACIÓN: BÚSQUEDA IA POR LENGUAJE NATURAL
+// POST /api/recommendations/ai-search { query: string }
+// → Ollama traduce a Cypher → Neo4j ejecuta → resultados
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface AISearchResponse {
+    pregunta: string;
+    resultados: RecommendationDTO[];
+}
+
+/** POST /api/recommendations/ai-search */
+export const aiSearch = async (query: string): Promise<AISearchResponse> => {
+    const response = await api.post('api/recommendations/ai-search', {
+        json: { query }
+    });
+    return response.json() as Promise<AISearchResponse>;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPRINT 4 — RESEÑAS DE OBRAS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** GET /api/arts/{id}/reviews — todas las reseñas de una obra */
+export const getArtReviews = (id: number): Promise<Review[]> =>
+    api.get(`api/arts/${id}/reviews`).json<Review[]>();
+
+/** GET /api/arts/{id}/reviews/stats — promedio + total */
+export const getArtReviewStats = (id: number): Promise<ReviewStats> =>
+    api.get(`api/arts/${id}/reviews/stats`).json<ReviewStats>();
+
+/** POST /api/arts/{id}/reviews — crear o actualizar reseña */
+export const createArtReview = (id: number, rating: number, comentario?: string): Promise<Review> =>
+    api.post(`api/arts/${id}/reviews`, {
+        json: { rating, comentario: comentario || null }
+    }).json<Review>();
+
+/** MODIFICADO por Diego Torrelles ( bd2-proyecto ) — admin borra una reseña por id */
+export const deleteArtReviewAdmin = (reviewId: string): Promise<{ message: string }> =>
+    api.delete(`api/admin/reviews/${reviewId}`).json<{ message: string }>();
+
+/** MODIFICADO por Diego Torrelles ( bd2-proyecto ) — buyer elimina SU propia reseña */
+export const deleteMyArtReview = (artId: number): Promise<{ message: string }> =>
+    api.delete(`api/arts/${artId}/reviews`).json<{ message: string }>();
+
+/** MODIFICADO por Diego Torrelles ( bd2-proyecto ) — admin da de baja a un comprador */
+export const desactivarBuyer = (buyerId: number): Promise<void> =>
+    api.patch(`api/buyers/${buyerId}/desactivar`, { json: {} }).then(() => undefined);

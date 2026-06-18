@@ -300,6 +300,7 @@ function MongoArtCard({
           src={art.imagenUrl || 'https://via.placeholder.com/400x300?text=undefined'}
           alt={toTitleCase(art.nombre) || 'undefined'}
           fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           className="object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <span className={`absolute top-3 right-3 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-full ${badgeColor(art.estatus)}`}>

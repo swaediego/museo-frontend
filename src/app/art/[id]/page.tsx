@@ -8,7 +8,9 @@ import Link from 'next/link';
 import { Art, Buyer, Ceramic, Orphebrery, Painting, Photography, Sculpture } from '@/types/art';
 import { MembershipButton } from '@/components/MembershipButton';
 import { ArtDetailField } from '@/components/ArtDetailField';
+import { ArtReviewsSection } from '@/components/ArtReviewsSection';
 import { mostrarAnio } from '@/utils/formatters';
+import { finalizarCompra } from '@/lib/api';
 
 
 export default function ArtDetailPage() {
@@ -17,6 +19,8 @@ export default function ArtDetailPage() {
     const [user, setUser] = useState<Buyer | null>(null);
     const [showSecurityModal, setShowSecurityModal] = useState(false);
     const [securityCodeInput, setSecurityCodeInput] = useState('');
+    // Qué acción se está haciendo en el modal: 'reservar' | 'comprar'
+    const [modalAction, setModalAction] = useState<'reservar' | 'comprar'>('reservar');
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -77,6 +81,28 @@ export default function ArtDetailPage() {
         onError: async (err: any) => {
             const errorMessage = await err.response?.text();
             alert(errorMessage || 'Error al cancelar la reserva. Inténtalo de nuevo.');
+        }
+    });
+
+    // ── 5. Mutación: Finalizar compra (reserva → venta, dispara Neo4j + Cassandra)
+    const buyMutation = useMutation({
+        mutationFn: (securityCode: string) => {
+            if (!user) throw new Error("No hay usuario logueado");
+            return finalizarCompra(Number(id), Number(user.id), securityCode);
+        },
+        onSuccess: (invoice) => {
+            alert(`¡Compra confirmada! Factura #${invoice.id} generada.`);
+            queryClient.invalidateQueries({ queryKey: ['art', id] });
+            queryClient.invalidateQueries({ queryKey: ['obras-reservadas'] });
+            queryClient.invalidateQueries({ queryKey: ['recommendations'] });
+            setShowSecurityModal(false);
+            setSecurityCodeInput('');
+        },
+        onError: async (err: any) => {
+            const errorMessage = await err.response?.text().catch(() => 'Error desconocido');
+            alert(errorMessage || 'Error al procesar la compra. Inténtalo de nuevo.');
+            setShowSecurityModal(false);
+            setSecurityCodeInput('');
         }
     });
 
@@ -287,13 +313,26 @@ export default function ArtDetailPage() {
                                 }}
                             />
                         ) : art.estatus === 'Reservada' && art.compradorReserva?.id === user.id ? (
-                            <button
-                                onClick={() => cancelReserveMutation.mutate()}
-                                disabled={cancelReserveMutation.isPending}
-                                className="w-full py-5 bg-red-600 text-white text-xs font-bold uppercase tracking-[0.3em] hover:bg-red-700 border-2 border-red-600 transition-all duration-300 shadow-xl disabled:bg-red-400"
-                            >
-                                {cancelReserveMutation.isPending ? 'Cancelando...' : 'Cancelar Reserva'}
-                            </button>
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => {
+                                        setModalAction('comprar');
+                                        setSecurityCodeInput('');
+                                        setShowSecurityModal(true);
+                                    }}
+                                    disabled={buyMutation.isPending}
+                                    className="w-full py-5 bg-emerald-600 text-white text-xs font-bold uppercase tracking-[0.3em] hover:bg-emerald-700 border-2 border-emerald-600 transition-all duration-300 shadow-xl disabled:bg-emerald-400"
+                                >
+                                    {buyMutation.isPending ? 'Procesando...' : 'Finalizar Compra'}
+                                </button>
+                                <button
+                                    onClick={() => cancelReserveMutation.mutate()}
+                                    disabled={cancelReserveMutation.isPending}
+                                    className="w-full py-3 bg-white text-red-600 text-xs font-bold uppercase tracking-widest hover:bg-red-50 border-2 border-red-200 transition-all duration-300 disabled:bg-red-100"
+                                >
+                                    {cancelReserveMutation.isPending ? 'Cancelando...' : 'Cancelar Reserva'}
+                                </button>
+                            </div>
                         ) : art.estatus !== 'Disponible' ? (
                             <button disabled className="w-full py-5 bg-stone-200 text-stone-500 text-xs font-bold uppercase tracking-[0.3em] cursor-not-allowed">
                                 Obra ya {art.estatus}
@@ -302,6 +341,7 @@ export default function ArtDetailPage() {
                             // La compra usa el id de la URL (= idRelacional de PostgreSQL)
                             <button
                                 onClick={() => {
+                                    setModalAction('reservar');
                                     setSecurityCodeInput('');
                                     setShowSecurityModal(true);
                                 }}
@@ -315,11 +355,25 @@ export default function ArtDetailPage() {
                 </div>
             </div>
 
+            {/* Nota de la obra — antes de reseñas */}
+            {mongoDoc?.nota && (
+                <div className="max-w-6xl mx-auto mt-12">
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-6 py-4 text-sm text-amber-800">
+                        {mongoDoc.nota}
+                    </div>
+                </div>
+            )}
+
+            {/* Reseñas — ancho completo, debajo del grid */}
+            <div className="max-w-6xl mx-auto mt-12">
+                <ArtReviewsSection artId={Number(id)} user={user} />
+            </div>
+
             {/* Modal de Código de Seguridad */}
             {showSecurityModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-stone-100">
-                        <h3 className="text-2xl font-serif font-bold text-slate-900 mb-2">Confirmar Reserva</h3>
+                        <h3 className="text-2xl font-serif font-bold text-slate-900 mb-2">Confirmar Compra</h3>
                         <p className="text-xs text-stone-500 mb-6">
                             Introduce tu código de seguridad alfanumérico de 10 caracteres enviado a tu correo al pagar la membresía.
                         </p>
@@ -354,9 +408,13 @@ export default function ArtDetailPage() {
                                             return;
                                         }
                                         setShowSecurityModal(false);
-                                        reserveMutation.mutate(securityCodeInput);
+                                        if (modalAction === 'comprar') {
+                                            buyMutation.mutate(securityCodeInput);
+                                        } else {
+                                            reserveMutation.mutate(securityCodeInput);
+                                        }
                                     }}
-                                    disabled={reserveMutation.isPending}
+                                    disabled={reserveMutation.isPending || buyMutation.isPending}
                                     className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-xs uppercase shadow-md active:scale-95"
                                 >
                                     Confirmar

@@ -51,6 +51,7 @@ export interface MongoArtDocument {
     artistaNombre: string;
     tipo: string;
     artista: MongoEmbeddedArtist;
+    nota?: string;
     /** Campos variables según el género de la obra */
     detallesEspecificos?: Record<string, unknown>;
 }
@@ -134,4 +135,25 @@ export interface Invoice {
     porcentajeGanancia: number;
     subtotal: number;
     codigoSeguridad?: string; // Opcional, podría no estar en la lista general
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPRINT 4 — RESEÑAS DE OBRAS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Reseña almacenada en MongoDB (colección `reviews`) */
+export interface Review {
+    id: string;
+    idRelacional: number;
+    buyerId: number;
+    buyerNombre: string;
+    rating: number;       // 1–5
+    comentario?: string;
+    fecha: string;        // ISO datetime
+}
+
+/** Estadísticas de reseñas de una obra */
+export interface ReviewStats {
+    promedio: number;
+    total: number;
 }

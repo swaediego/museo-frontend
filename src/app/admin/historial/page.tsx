@@ -75,8 +75,9 @@ export default function HistorialPage() {
                                     <div className="bg-slate-800 text-white px-6 py-4 flex justify-between items-center">
                                         <h2 className="text-lg font-bold">Obra #{idRelacional}</h2>
                                         <div className="text-right text-sm">
-                                            <p>Total: <span className="font-bold text-emerald-300">${totalMonto.toLocaleString('de-DE')}</span></p>
+                                            <p>Subtotal: <span className="text-stone-300">${totalMonto.toLocaleString('de-DE')}</span></p>
                                             <p className="text-stone-300">IVA: ${totalImpuesto.toLocaleString('de-DE')}</p>
+                                            <p>Total: <span className="font-bold text-emerald-300">${(totalMonto + totalImpuesto).toLocaleString('de-DE')}</span></p>
                                         </div>
                                     </div>
                                     <div className="overflow-x-auto">
@@ -85,8 +86,9 @@ export default function HistorialPage() {
                                                 <tr>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Factura</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">Fecha</th>
-                                                    <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">Monto</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">Subtotal</th>
                                                     <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">IVA</th>
+                                                    <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">Total</th>
                                                     <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">Comprador</th>
                                                 </tr>
                                             </thead>
@@ -99,6 +101,7 @@ export default function HistorialPage() {
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-slate-800">${v.monto.toLocaleString('de-DE')}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-stone-600">${v.impuesto.toLocaleString('de-DE')}</td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-emerald-700 font-bold">${(v.monto + v.impuesto).toLocaleString('de-DE')}</td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-stone-600">#{v.idComprador}</td>
                                                     </tr>
                                                 ))}
