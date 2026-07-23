@@ -75,7 +75,27 @@ export default function AdminArtPage() {
             setArts(prev => prev.filter(art => art.id !== id));
             alert("Obra eliminada con éxito.");
         } catch (err) {
-            alert("Error al eliminar la obra.");
+            // MODIFICADO por Diego Torrelles (23/07/2026) — distinguir 403/404/500 en el
+            // mensaje de error para diagnosticar mejor. Antes era siempre el mismo
+            // texto genérico.
+            let msg = "Error al eliminar la obra.";
+            if (err instanceof HTTPError) {
+                try {
+                    const body = await err.response.text();
+                    if (err.response.status === 403) {
+                        msg = "Sin permisos. Verificá estar logueado como administrador.";
+                    } else if (err.response.status === 404) {
+                        msg = "La obra ya no existe en el servidor.";
+                    } else if (err.response.status === 409) {
+                        msg = body || "La obra está reservada. Cancelá la reserva antes de eliminarla.";
+                    } else if (body) {
+                        msg = body;
+                    }
+                } catch { /* dejar mensaje genérico */ }
+            } else if (err instanceof Error) {
+                msg = err.message;
+            }
+            alert(msg);
             console.error(err);
         }
     };

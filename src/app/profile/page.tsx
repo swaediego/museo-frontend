@@ -6,6 +6,65 @@ import { useMutation } from '@tanstack/react-query';
 import RecommendationSection from '@/components/RecommendationSection';
 import { formatCardMask } from '@/utils/formatters';
 
+// MODIFICADO por Diego Torrelles (23/07/2026) — input de solo lectura con toggle
+// de visibilidad (ojito). Reemplaza al renderReadOnly genérico solo para campos
+// sensibles como el código de seguridad. El ojito tachado = oculto, normal = visible.
+// Al hacer click se mantiene el código visible el tiempo que el usuario quiera
+// (no se auto-oculta), para permitir copiarlo.
+function ReadOnlyWithToggle({ label, value }: { label: string; value: string }) {
+    const [visible, setVisible] = useState(false);
+    // Si no hay valor, mostramos un placeholder neutro
+    const hasValue = value && value.trim().length > 0;
+    const display = !hasValue
+        ? '—'
+        : visible
+            ? value
+            : '•'.repeat(Math.max(value.length, 6));
+
+    return (
+        <div>
+            <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">
+                {label}
+            </label>
+            <div className="relative">
+                <input
+                    type="text"
+                    readOnly
+                    value={display}
+                    className="w-full p-3 pr-12 bg-stone-100 rounded-xl border border-stone-200 text-slate-500 font-medium cursor-not-allowed select-all"
+                    aria-label={label}
+                />
+                <button
+                    type="button"
+                    // MODIFICADO por Diego Torrelles (23/07/2026) — toggle manual,
+                    // no se auto-oculta para que el usuario pueda copiar el código
+                    // con el ojito abierto.
+                    onClick={() => setVisible(v => !v)}
+                    title={visible ? 'Ocultar código' : 'Mostrar código'}
+                    aria-label={visible ? 'Ocultar código' : 'Mostrar código'}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-stone-200 text-stone-500 hover:text-slate-800 transition-colors"
+                >
+                    {visible ? (
+                        // Ojito ABIERTO (sin tachar) = código VISIBLE
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                    ) : (
+                        // Ojito TACHADO = código OCULTO
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                            <line x1="1" y1="1" x2="23" y2="23" />
+                        </svg>
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function ProfilePage() {
     const [user, setUser] = useState<User | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -173,8 +232,14 @@ export default function ProfilePage() {
                             {renderInput("Dirección de Envío", "direccionEnvio")}
                             <div className="grid grid-cols-2 gap-4">
                                 {renderInput("Número de Tarjeta (últimos 4 dígitos)", "datosTarjetaMask", "text", formatCardMask)}
-                                {/* AQUÍ USAMOS EL NUEVO COMPONENTE QUE ES SOLO DE LECTURA */}
-                                {renderReadOnly("Código de Seguridad", "codigoSeguridad")}
+                                {/* MODIFICADO por Diego Torrelles (23/07/2026) — código de seguridad
+                                    ahora usa ReadOnlyWithToggle (ojito) en lugar de renderReadOnly.
+                                    Por defecto oculto (••••), el usuario hace click en el ojito
+                                    para mostrarlo y poder copiarlo. Toggle manual, no se auto-oculta. */}
+                                <ReadOnlyWithToggle
+                                    label="Código de Seguridad"
+                                    value={formData.codigoSeguridad || ''}
+                                />
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1">Tipo de Membresía</label>
